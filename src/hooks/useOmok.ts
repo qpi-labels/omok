@@ -68,22 +68,45 @@ export const useOmok = () => {
     return currentBoard.every(row => row.every(cell => cell !== null));
   };
 
-  const evaluateLine = (count: number, openEnds: number) => {
-    if (count >= 5) return 1000000;
-    if (count === 4) {
-      if (openEnds === 2) return 100000;
-      if (openEnds === 1) return 10000;
-    }
-    if (count === 3) {
-      if (openEnds === 2) return 5000;
-      if (openEnds === 1) return 500;
-    }
-    if (count === 2) {
-      if (openEnds === 2) return 100;
-      if (openEnds === 1) return 10;
-    }
-    if (count === 1 && openEnds === 2) return 1;
+  const evaluateDirection = (line: string) => {
+    if (line.includes('11111')) return 10000000;
+    if (line.includes('011110')) return 1000000;
+    if (line.includes('01111') || line.includes('11110') || 
+        line.includes('10111') || line.includes('11101') || 
+        line.includes('11011')) return 100000;
+    if (line.includes('01110') || line.includes('010110') || 
+        line.includes('011010')) return 100000;
+    if (line.includes('00111') || line.includes('11100') || 
+        line.includes('01101') || line.includes('10110') || 
+        line.includes('01011') || line.includes('11010') || 
+        line.includes('10011') || line.includes('11001') || 
+        line.includes('10101')) return 10000;
+    if (line.includes('00110') || line.includes('01100') || 
+        line.includes('01010') || line.includes('010010') ||
+        line.includes('10010') || line.includes('01001') || 
+        line.includes('10001')) return 1000;
+    if (line.includes('00010') || line.includes('01000')) return 100;
     return 0;
+  };
+
+  const getLine = (currentBoard: BoardState, r: number, c: number, dr: number, dc: number, player: Player) => {
+    let line = '';
+    for (let i = -4; i <= 4; i++) {
+      const nr = r + dr * i;
+      const nc = c + dc * i;
+      if (nr === r && nc === c) {
+        line += '1';
+      } else if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) {
+        line += '2';
+      } else if (currentBoard[nr][nc] === player) {
+        line += '1';
+      } else if (currentBoard[nr][nc] === null) {
+        line += '0';
+      } else {
+        line += '2';
+      }
+    }
+    return line;
   };
 
   const evaluateCell = (currentBoard: BoardState, r: number, c: number, player: 'black' | 'white') => {
@@ -93,51 +116,8 @@ export const useOmok = () => {
     ];
 
     for (const [dr, dc] of directions) {
-      let count = 1;
-      let openEnds = 0;
-
-      // check positive
-      let posBlocked = false;
-      for (let i = 1; i <= 4; i++) {
-        const nr = r + dr * i;
-        const nc = c + dc * i;
-        if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) {
-          posBlocked = true;
-          break;
-        }
-        if (currentBoard[nr][nc] === player) {
-          count++;
-        } else if (currentBoard[nr][nc] === null) {
-          openEnds++;
-          break;
-        } else {
-          posBlocked = true;
-          break;
-        }
-      }
-
-      // check negative
-      let negBlocked = false;
-      for (let i = 1; i <= 4; i++) {
-        const nr = r - dr * i;
-        const nc = c - dc * i;
-        if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) {
-          negBlocked = true;
-          break;
-        }
-        if (currentBoard[nr][nc] === player) {
-          count++;
-        } else if (currentBoard[nr][nc] === null) {
-          openEnds++;
-          break;
-        } else {
-          negBlocked = true;
-          break;
-        }
-      }
-
-      if (posBlocked && negBlocked && count < 5) continue; // dead line
-      score += evaluateLine(count, openEnds);
+      const lineStr = getLine(currentBoard, r, c, dr, dc, player);
+      score += evaluateDirection(lineStr);
     }
     return score;
   };
@@ -164,13 +144,17 @@ export const useOmok = () => {
       for (let c = 0; c < BOARD_SIZE; c++) {
         if (currentBoard[r][c] !== null) continue;
 
-        // Evaluate attack score (AI making a line)
         const attackScore = evaluateCell(currentBoard, r, c, aiPlayer);
-        // Evaluate defense score (blocking human making a line)
         const defenseScore = evaluateCell(currentBoard, r, c, humanPlayer);
 
-        // Defensive moves are slightly more important to prevent immediate losses
-        const score = attackScore + defenseScore * 1.2;
+        if (attackScore >= 10000000) {
+          return { row: r, col: c }; // Immediate win
+        }
+
+        let score = attackScore * 1.1 + defenseScore;
+        if (defenseScore >= 10000000) {
+          score += 20000000; // Must block opponent win
+        }
 
         if (score > bestScore) {
           bestScore = score;
