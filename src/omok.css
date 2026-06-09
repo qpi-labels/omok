@@ -4,9 +4,9 @@
 
    .board-wrapper {
     position: relative;
-    padding: 1rem;
-    background-color: #F4F4F5;
-    border-radius: 4px;
+    padding: 2rem;
+    background-color: var(--color-bg-primary);
+    border-radius: 8px;
     border: 1px solid var(--color-border-default);
     box-shadow: var(--shadow-hardware-bevel);
     display: inline-block;
@@ -18,7 +18,7 @@
     grid-template-rows: repeat(15, 36px);
     gap: 0;
     position: relative;
-    background-color: #F4F4F5;
+    background-color: var(--color-bg-primary);
   }
   
   .board::before {

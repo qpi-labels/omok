@@ -3,6 +3,7 @@ import { useState, useCallback, useEffect } from 'react';
 export type Player = 'black' | 'white' | null;
 export type BoardState = Player[][];
 export type Position = { row: number; col: number };
+export type Difficulty = 'easy' | 'normal' | 'hard' | 'expert' | 'god';
 
 const BOARD_SIZE = 15;
 
@@ -10,7 +11,7 @@ const createEmptyBoard = (): BoardState => {
   return Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null));
 };
 
-export const useOmok = () => {
+export const useOmok = (onGameEnd?: (isHumanWin: boolean, diff: Difficulty) => void) => {
   const [board, setBoard] = useState<BoardState>(createEmptyBoard());
   const [currentPlayer, setCurrentPlayer] = useState<Player>('black');
   const [winner, setWinner] = useState<Player | 'draw'>(null);
@@ -21,8 +22,11 @@ export const useOmok = () => {
   const [humanColor, setHumanColor] = useState<'black' | 'white'>('black');
   const [isColorDeciding, setIsColorDeciding] = useState(false);
   const [decidedColor, setDecidedColor] = useState<'black' | 'white' | null>(null);
+  const [difficulty, setDifficulty] = useState<Difficulty>('hard');
+  const [hasStarted, setHasStarted] = useState(false);
 
   const resetGame = useCallback(() => {
+    setHasStarted(true);
     setBoard(createEmptyBoard());
     setCurrentPlayer('black');
     setWinner(null);
@@ -44,10 +48,6 @@ export const useOmok = () => {
       }, 1500); // Show result for 1.5 seconds before hiding
     }, 1500); // 1.5 seconds spinning animation
   }, []);
-
-  useEffect(() => {
-    resetGame();
-  }, [resetGame]);
 
   const checkWin = (currentBoard: BoardState, row: number, col: number, player: 'black' | 'white'): Position[] | null => {
     const directions = [
@@ -89,10 +89,10 @@ export const useOmok = () => {
   };
 
   const WINDOW_SCORES = {
-    5: 10000000,
-    4: 100000,
-    3: 15000,
-    2: 2000,
+    5: 100000000,
+    4: 2000000, // 4목 최우선
+    3: 400000,  // 3목 가치 대폭 상향. (쌍삼 3-3 유도)
+    2: 10000,   // 밀착 마크
     1: 100,
     0: 0
   };
@@ -159,6 +159,55 @@ export const useOmok = () => {
     };
   };
 
+  const evaluateMove = (board: BoardState, r: number, c: number, player: 'black' | 'white', opponent: 'black' | 'white') => {
+    // 1. 중앙 선호도 (Positional Bonus)
+    // 체스나 오목 모두 중앙(7,7)을 장악할수록 유리합니다.
+    const centerDist = Math.max(Math.abs(r - 7), Math.abs(c - 7));
+    let score = (7 - centerDist) * 50;
+    let isWin = false;
+
+    const directions = [
+      [0, 1],
+      [1, 0],
+      [1, 1],
+      [1, -1]
+    ];
+
+    for (const [dr, dc] of directions) {
+      for (let i = 0; i < 5; i++) {
+        const wr = r - dr * i;
+        const wc = c - dc * i;
+        
+        const endR = wr + dr * 4;
+        const endC = wc + dc * 4;
+        
+        if (wr < 0 || wr >= BOARD_SIZE || wc < 0 || wc >= BOARD_SIZE || 
+            endR < 0 || endR >= BOARD_SIZE || endC < 0 || endC >= BOARD_SIZE) {
+          continue;
+        }
+
+        let pStones = 0;
+        let oStones = 0;
+        for (let j = 0; j < 5; j++) {
+          const nr = wr + dr * j;
+          const nc = wc + dc * j;
+          const stone = board[nr][nc];
+          if (stone === player) pStones++;
+          else if (stone === opponent) oStones++;
+        }
+
+        if (pStones > 0 && oStones === 0) {
+          if (pStones === 5) isWin = true;
+          let s = WINDOW_SCORES[pStones as keyof typeof WINDOW_SCORES];
+          if (dr !== 0 && dc !== 0) s *= 1.2;
+          score += s;
+        }
+      }
+    }
+
+    return { score, isWin };
+  };
+
   const getCandidateMoves = (board: BoardState, aiPlayer: 'black' | 'white', humanPlayer: 'black' | 'white') => {
     const moves: { row: number, col: number, score: number }[] = [];
     
@@ -205,17 +254,17 @@ export const useOmok = () => {
         
         if (hasNeighbor) {
           board[r][c] = aiPlayer;
-          const aiEval = evaluateBoardState(board, aiPlayer, humanPlayer);
+          const aiEval = evaluateMove(board, r, c, aiPlayer, humanPlayer);
           board[r][c] = null;
           
           board[r][c] = humanPlayer;
-          const humanEval = evaluateBoardState(board, humanPlayer, aiPlayer);
+          const humanEval = evaluateMove(board, r, c, humanPlayer, aiPlayer);
           board[r][c] = null;
           
           let moveScore = aiEval.score + humanEval.score; 
           
-          if (aiEval.aiWin) moveScore += 500000000;
-          else if (humanEval.aiWin) moveScore += 200000000; 
+          if (aiEval.isWin) moveScore += 500000000;
+          else if (humanEval.isWin) moveScore += 200000000; 
 
           moves.push({ row: r, col: c, score: moveScore });
         }
@@ -234,13 +283,29 @@ export const useOmok = () => {
     if (depth === 0) return boardEval.score;
 
     const currentPlayer = isMaximizing ? aiPlayer : humanPlayer;
-    const moves = getCandidateMoves(board, aiPlayer, humanPlayer).slice(0, 12);
+    const moves = getCandidateMoves(board, aiPlayer, humanPlayer);
     
     if (moves.length === 0) return 0;
     
+    let searchMoves = [];
+    // 강력한 핑계(강제수)가 발견되면 다른 가지는 탐색하지 않음 (승리 또는 필수 방어)
+    if (moves[0].score >= 200000000) {
+      searchMoves = [moves[0]];
+    } else {
+      // Forward Pruning: 깊이가 깊어질수록 상위 핵심 수만 탐색하여 연산량 최적화
+      let branchLimit = 12;
+      if (depth >= 9) branchLimit = 2; 
+      else if (depth >= 7) branchLimit = 3;
+      else if (depth >= 5) branchLimit = 4;
+      else if (depth >= 3) branchLimit = 6;
+      else if (depth >= 2) branchLimit = 8;
+      
+      searchMoves = moves.slice(0, branchLimit);
+    }
+    
     if (isMaximizing) {
       let maxEval = -Infinity;
-      for (const move of moves) {
+      for (const move of searchMoves) {
         board[move.row][move.col] = currentPlayer;
         const ev = minimax(board, depth - 1, alpha, beta, false, aiPlayer, humanPlayer);
         board[move.row][move.col] = null;
@@ -252,7 +317,7 @@ export const useOmok = () => {
       return maxEval;
     } else {
       let minEval = Infinity;
-      for (const move of moves) {
+      for (const move of searchMoves) {
         board[move.row][move.col] = currentPlayer;
         const ev = minimax(board, depth - 1, alpha, beta, true, aiPlayer, humanPlayer);
         board[move.row][move.col] = null;
@@ -278,10 +343,23 @@ export const useOmok = () => {
     let bestScore = -Infinity;
     let bestMove = moves[0];
     
-    const searchMoves = moves.slice(0, 12);
+    const depthMap = {
+      'easy': 1,
+      'normal': 3,
+      'hard': 5,
+      'expert': 7,
+      'god': 10
+    };
+    const searchDepth = depthMap[difficulty];
+    
+    // 루트 노드(첫 번째 수)에서는 조금 더 폭넓게 고려하되 
+    // 깊이가 아주 깊을 때는 루트도 가지를 조금 칩니다.
+    const rootBranchLimit = searchDepth >= 10 ? 6 : searchDepth >= 7 ? 8 : searchDepth >= 5 ? 10 : 12;
+    const searchMoves = moves.slice(0, rootBranchLimit);
+    
     for (const move of searchMoves) {
       currentBoard[move.row][move.col] = aiPlayer;
-      const score = minimax(currentBoard, 3, -Infinity, Infinity, false, aiPlayer, humanPlayer);
+      const score = minimax(currentBoard, searchDepth, -Infinity, Infinity, false, aiPlayer, humanPlayer);
       currentBoard[move.row][move.col] = null;
       
       const finalScore = score + Math.random();
@@ -296,18 +374,32 @@ export const useOmok = () => {
   };
 
   const playMove = useCallback((row: number, col: number) => {
-    if (board[row][col] || winner || isAiThinking || currentPlayer !== humanColor) return;
+    if (!hasStarted || board[row][col] || winner || isAiThinking || currentPlayer !== humanColor || isColorDeciding) return;
+
+    const aiPlayer = humanColor === 'black' ? 'white' : 'black';
+    const humanPlayer = humanColor;
 
     const newBoard = board.map(r => [...r]);
     newBoard[row][col] = currentPlayer;
+    
     setBoard(newBoard);
     setLastMove({ row, col });
+    setCurrentPlayer(aiPlayer);
 
-    const winLine = checkWin(newBoard, row, col, currentPlayer!);
-    if (winLine) {
-      setWinner(currentPlayer);
-      setWinningLine(winLine);
-      setTimeout(() => setShowOverlay(true), 1500); // delay overlay by 1.5s
+    const boardEval = evaluateBoardState(newBoard, aiPlayer, humanPlayer);
+    if (boardEval.humanWin) {
+      setWinner(humanPlayer);
+      setWinningLine(checkWin(newBoard, row, col, humanPlayer) || []);
+      setTimeout(() => setShowOverlay(true), 1500);
+      if (onGameEnd) onGameEnd(true, difficulty);
+      return;
+    }
+    
+    if (boardEval.aiWin) {
+      setWinner(aiPlayer);
+      setWinningLine(checkWin(newBoard, row, col, aiPlayer) || []);
+      setTimeout(() => setShowOverlay(true), 1500);
+      if (onGameEnd) onGameEnd(false, difficulty);
       return;
     }
 
@@ -317,30 +409,42 @@ export const useOmok = () => {
       return;
     }
 
-    setCurrentPlayer(currentPlayer === 'black' ? 'white' : 'black');
-  }, [board, currentPlayer, winner, isAiThinking]);
+  }, [board, currentPlayer, winner, isAiThinking, humanColor, isColorDeciding]);
 
   // AI Turn
   useEffect(() => {
-    if (currentPlayer !== humanColor && !winner) {
+    if (!hasStarted) return;
+    if (currentPlayer !== humanColor && !winner && !isColorDeciding) {
       setIsAiThinking(true);
-      const aiPlayer = currentPlayer as 'black' | 'white';
+      const aiPlayer = humanColor === 'black' ? 'white' : 'black';
+      const humanPlayer = humanColor;
       
       // Use setTimeout to allow UI to render human's move and show "AI Thinking"
       const timer = setTimeout(() => {
         const bestMove = findBestMove(board, aiPlayer);
         
-        const newBoard = board.map(r => [...r]);
-        newBoard[bestMove.row][bestMove.col] = aiPlayer;
-        setBoard(newBoard);
+        const newBoardAfterAi = board.map(r => [...r]);
+        newBoardAfterAi[bestMove.row][bestMove.col] = aiPlayer;
+        setBoard(newBoardAfterAi);
         setLastMove({ row: bestMove.row, col: bestMove.col });
+        setCurrentPlayer(humanColor);
 
-        const winLine = checkWin(newBoard, bestMove.row, bestMove.col, aiPlayer);
-        if (winLine) {
+        const aiEval = evaluateBoardState(newBoardAfterAi, aiPlayer, humanPlayer);
+        if (aiEval.humanWin) {
+          setWinner(humanPlayer);
+          setWinningLine(checkWin(newBoardAfterAi, bestMove.row, bestMove.col, humanPlayer) || []);
+          setTimeout(() => setShowOverlay(true), 1500);
+          if (onGameEnd) onGameEnd(true, difficulty);
+          return;
+        }
+        
+        if (aiEval.aiWin) {
           setWinner(aiPlayer);
-          setWinningLine(winLine);
-          setTimeout(() => setShowOverlay(true), 1500); // delay overlay
-        } else if (checkDraw(newBoard)) {
+          setWinningLine(checkWin(newBoardAfterAi, bestMove.row, bestMove.col, aiPlayer) || []);
+          setTimeout(() => setShowOverlay(true), 1500);
+          if (onGameEnd) onGameEnd(false, difficulty);
+          return;
+        } else if (checkDraw(newBoardAfterAi)) {
           setWinner('draw');
           setTimeout(() => setShowOverlay(true), 500);
         } else {
@@ -351,7 +455,7 @@ export const useOmok = () => {
       
       return () => clearTimeout(timer);
     }
-  }, [currentPlayer, board, winner, humanColor]);
+  }, [currentPlayer, board, winner, humanColor, isColorDeciding, hasStarted]);
 
   return {
     board,
@@ -364,7 +468,10 @@ export const useOmok = () => {
     humanColor,
     isColorDeciding,
     decidedColor,
+    difficulty,
+    setDifficulty,
     playMove,
-    resetGame
+    resetGame,
+    hasStarted
   };
 };
