@@ -117,10 +117,6 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [hasStarted, winner, isAiThinking, currentPlayer, humanColor, isColorDeciding, playMove, cursorPos]);
 
-  const toggleTheme = () => {
-    setTheme(prev => prev === 'light' ? 'dark' : 'light');
-  };
-
   return (
     <div className="pdf-app">
       {/* Sidebar for navigation / controls */}

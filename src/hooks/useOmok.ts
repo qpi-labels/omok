@@ -145,7 +145,6 @@ export const useOmok = (onGameEnd?: (isHumanWin: boolean, diff: Difficulty) => v
     if (currentPlayer !== humanColor && !isAiThinking) {
       setIsAiThinking(true);
       const aiPlayer = humanColor === 'black' ? 'white' : 'black';
-      const humanPlayer = humanColor;
       
       if (aiWorker.current) {
         aiWorker.current.onmessage = (e) => {

@@ -32,35 +32,6 @@ function isTimeUp() {
   return performance.now() - globalStartTime > timeLimitMs;
 }
 
-// Evaluate continuous line (precise pattern matching)
-function evaluateLine(board: BoardState, r: number, c: number, dr: number, dc: number, player: Player, opponent: Player): number {
-  let score = 0;
-  // A pattern consists of max 6 cells (e.g. .OOOO. is 6 cells)
-  // Instead of complex pattern matching, we can use a simpler heuristic with open/blocked states
-  
-  let consecutive = 0;
-  let openEnds = 0;
-  
-  for(let i=0; i<5; i++) {
-    const nr = r + dr*i;
-    const nc = c + dc*i;
-    if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) break;
-    
-    if (board[nr][nc] === player) {
-      consecutive++;
-    } else if (board[nr][nc] === opponent) {
-      break;
-    } else {
-      openEnds++;
-    }
-  }
-
-  // Very simplified version for raw minimax speed, will be enhanced.
-  // Actually, standard Gomoku engines evaluate the whole axis passing through a point.
-  // For VCF, we need to quickly identify 4-threats.
-  return score;
-}
-
 // Full board evaluation
 function evaluateBoardState(board: BoardState, aiPlayer: 'black'|'white', humanPlayer: 'black'|'white'): { aiWin: boolean, humanWin: boolean, score: number } {
   let aiScore = 0;
