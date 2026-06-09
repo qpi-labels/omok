@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import './omok.css';
 
 function App() {
-  const { board, currentPlayer, winner, showOverlay, winningLine, lastMove, isAiThinking, playMove, resetGame } = useOmok();
+  const { board, currentPlayer, winner, showOverlay, winningLine, lastMove, isAiThinking, humanColor, isColorDeciding, decidedColor, playMove, resetGame } = useOmok();
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {
@@ -53,11 +53,11 @@ function App() {
                 <span className="pdf-text-label-16">
                   {winner
                     ? 'Game Over'
-                    : currentPlayer === 'black'
-                    ? 'Your Turn [Black]'
+                    : currentPlayer === humanColor
+                    ? `Your Turn [${humanColor === 'black' ? 'Black' : 'White'}]`
                     : isAiThinking
                     ? 'Computer is thinking...'
-                    : "Computer's Turn [White]"}
+                    : `Computer's Turn [${humanColor === 'black' ? 'White' : 'Black'}]`}
                 </span>
               </div>
               <div className="pdf-text-copy-13-mono pdf-text-muted">Status: {winner ? 'HALTED' : 'ACTIVE'}</div>
@@ -104,10 +104,26 @@ function App() {
                     })
                   )}
 
+                  {isColorDeciding && (
+                    <div className="color-decider-overlay">
+                      <div className={`coin-container ${decidedColor ? 'decided' : ''}`}>
+                        <div className={`coin ${decidedColor || ''}`}>
+                          <div className="coin-face front black"></div>
+                          <div className="coin-face back white"></div>
+                        </div>
+                      </div>
+                      <div className="pdf-text-heading-24" style={{ color: 'var(--color-text-primary)' }}>
+                        {decidedColor 
+                          ? (decidedColor === 'black' ? '흑돌 당첨! (선공)' : '백돌 당첨! (후공)')
+                          : '돌 색상을 섞는 중...'}
+                      </div>
+                    </div>
+                  )}
+
                   {showOverlay && winner && (
                     <div className="winner-overlay">
                       <div className="pdf-text-heading-32 pdf-mb-200" style={{ color: 'var(--color-text-primary)' }}>
-                        {winner === 'black' ? 'YOU WIN!' : winner === 'white' ? 'COMPUTER WINS!' : 'DRAW!'}
+                        {winner === humanColor ? 'YOU WIN!' : winner === 'draw' ? 'DRAW!' : 'COMPUTER WINS!'}
                       </div>
                       <button className="pdf-btn-primary" onClick={resetGame}>RESTART SYSTEM</button>
                     </div>

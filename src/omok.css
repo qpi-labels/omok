@@ -173,3 +173,75 @@
   [data-theme='dark'] .winner-overlay {
     background: rgba(9, 9, 11, 0.8);
   }
+
+  .color-decider-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(8px);
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    animation: pdfFadeIn 0.3s ease;
+  }
+  
+  [data-theme='dark'] .color-decider-overlay {
+    background: rgba(9, 9, 11, 0.8);
+  }
+  
+  .coin-container {
+    width: 100px;
+    height: 100px;
+    perspective: 1000px;
+    margin-bottom: 2rem;
+  }
+  
+  .coin {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    transform-style: preserve-3d;
+    animation: spinCoin 0.6s linear infinite;
+  }
+  
+  .coin-container.decided .coin {
+    animation: none;
+    transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+  
+  .coin-container.decided .coin.black {
+    transform: rotateY(0deg) scale(1.2);
+  }
+  
+  .coin-container.decided .coin.white {
+    transform: rotateY(180deg) scale(1.2);
+  }
+  
+  .coin-face {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    backface-visibility: hidden;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+  }
+  
+  .coin-face.front {
+    background-color: var(--color-text-primary);
+    border: 4px solid var(--color-border-hover);
+    transform: rotateY(0deg);
+  }
+  
+  .coin-face.back {
+    background-color: var(--color-bg-primary);
+    border: 4px solid var(--color-border-default);
+    transform: rotateY(180deg);
+  }
+  
+  @keyframes spinCoin {
+    from { transform: rotateY(0deg); }
+    to { transform: rotateY(360deg); }
+  }

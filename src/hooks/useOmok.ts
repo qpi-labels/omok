@@ -18,8 +18,11 @@ export const useOmok = () => {
   const [winningLine, setWinningLine] = useState<Position[]>([]);
   const [lastMove, setLastMove] = useState<Position | null>(null);
   const [isAiThinking, setIsAiThinking] = useState(false);
+  const [humanColor, setHumanColor] = useState<'black' | 'white'>('black');
+  const [isColorDeciding, setIsColorDeciding] = useState(false);
+  const [decidedColor, setDecidedColor] = useState<'black' | 'white' | null>(null);
 
-  const resetGame = () => {
+  const resetGame = useCallback(() => {
     setBoard(createEmptyBoard());
     setCurrentPlayer('black');
     setWinner(null);
@@ -27,7 +30,24 @@ export const useOmok = () => {
     setWinningLine([]);
     setLastMove(null);
     setIsAiThinking(false);
-  };
+    
+    // Start animation
+    setIsColorDeciding(true);
+    setDecidedColor(null);
+    const chosenColor = Math.random() < 0.5 ? 'black' : 'white';
+
+    setTimeout(() => {
+      setDecidedColor(chosenColor);
+      setHumanColor(chosenColor);
+      setTimeout(() => {
+        setIsColorDeciding(false);
+      }, 1500); // Show result for 1.5 seconds before hiding
+    }, 1500); // 1.5 seconds spinning animation
+  }, []);
+
+  useEffect(() => {
+    resetGame();
+  }, [resetGame]);
 
   const checkWin = (currentBoard: BoardState, row: number, col: number, player: 'black' | 'white'): Position[] | null => {
     const directions = [
@@ -68,62 +88,79 @@ export const useOmok = () => {
     return currentBoard.every(row => row.every(cell => cell !== null));
   };
 
-  const evaluateDirection = (line: string) => {
-    if (line.includes('11111')) return 10000000;
-    if (line.includes('011110')) return 1000000;
-    if (line.includes('01111') || line.includes('11110') || 
-        line.includes('10111') || line.includes('11101') || 
-        line.includes('11011')) return 100000;
-    if (line.includes('01110') || line.includes('010110') || 
-        line.includes('011010')) return 100000;
-    if (line.includes('00111') || line.includes('11100') || 
-        line.includes('01101') || line.includes('10110') || 
-        line.includes('01011') || line.includes('11010') || 
-        line.includes('10011') || line.includes('11001') || 
-        line.includes('10101')) return 10000;
-    if (line.includes('00110') || line.includes('01100') || 
-        line.includes('01010') || line.includes('010010') ||
-        line.includes('10010') || line.includes('01001') || 
-        line.includes('10001')) return 1000;
-    if (line.includes('00010') || line.includes('01000')) return 100;
-    return 0;
+  const WINDOW_SCORES = {
+    5: 10000000,
+    4: 100000,
+    3: 15000,
+    2: 2000,
+    1: 100,
+    0: 0
   };
 
-  const getLine = (currentBoard: BoardState, r: number, c: number, dr: number, dc: number, player: Player) => {
-    let line = '';
-    for (let i = -4; i <= 4; i++) {
-      const nr = r + dr * i;
-      const nc = c + dc * i;
-      if (nr === r && nc === c) {
-        line += '1';
-      } else if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) {
-        line += '2';
-      } else if (currentBoard[nr][nc] === player) {
-        line += '1';
-      } else if (currentBoard[nr][nc] === null) {
-        line += '0';
-      } else {
-        line += '2';
+  const evaluateBoardState = (board: BoardState, aiPlayer: Player, humanPlayer: Player): { aiWin: boolean, humanWin: boolean, score: number } => {
+    let aiScore = 0;
+    let humanScore = 0;
+    let aiWin = false;
+    let humanWin = false;
+
+    const evaluateWindow = (r: number, c: number, dr: number, dc: number) => {
+      let aiStones = 0;
+      let humanStones = 0;
+      
+      for (let i = 0; i < 5; i++) {
+        const nr = r + dr * i;
+        const nc = c + dc * i;
+        const stone = board[nr][nc];
+        if (stone === aiPlayer) aiStones++;
+        else if (stone === humanPlayer) humanStones++;
+      }
+
+      if (aiStones > 0 && humanStones === 0) {
+        if (aiStones === 5) aiWin = true;
+        let s = WINDOW_SCORES[aiStones as keyof typeof WINDOW_SCORES];
+        if (dr !== 0 && dc !== 0) s *= 1.2;
+        aiScore += s;
+      } else if (humanStones > 0 && aiStones === 0) {
+        if (humanStones === 5) humanWin = true;
+        let s = WINDOW_SCORES[humanStones as keyof typeof WINDOW_SCORES];
+        if (dr !== 0 && dc !== 0) s *= 1.2;
+        humanScore += s;
+      }
+    };
+
+    for (let r = 0; r < BOARD_SIZE; r++) {
+      for (let c = 0; c <= BOARD_SIZE - 5; c++) {
+        evaluateWindow(r, c, 0, 1);
       }
     }
-    return line;
-  };
 
-  const evaluateCell = (currentBoard: BoardState, r: number, c: number, player: 'black' | 'white') => {
-    let score = 0;
-    const directions = [
-      [0, 1], [1, 0], [1, 1], [1, -1]
-    ];
-
-    for (const [dr, dc] of directions) {
-      const lineStr = getLine(currentBoard, r, c, dr, dc, player);
-      score += evaluateDirection(lineStr);
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      for (let r = 0; r <= BOARD_SIZE - 5; r++) {
+        evaluateWindow(r, c, 1, 0);
+      }
     }
-    return score;
+
+    for (let r = 0; r <= BOARD_SIZE - 5; r++) {
+      for (let c = 0; c <= BOARD_SIZE - 5; c++) {
+        evaluateWindow(r, c, 1, 1);
+      }
+    }
+
+    for (let r = 0; r <= BOARD_SIZE - 5; r++) {
+      for (let c = 4; c < BOARD_SIZE; c++) {
+        evaluateWindow(r, c, 1, -1);
+      }
+    }
+
+    return {
+      aiWin,
+      humanWin,
+      score: aiScore * 1.1 - humanScore
+    };
   };
 
   const getCandidateMoves = (board: BoardState, aiPlayer: 'black' | 'white', humanPlayer: 'black' | 'white') => {
-    const moves: { row: number, col: number, score: number, aiWin: boolean, humanWin: boolean }[] = [];
+    const moves: { row: number, col: number, score: number }[] = [];
     
     let minR = BOARD_SIZE, maxR = -1, minC = BOARD_SIZE, maxC = -1;
     let hasStones = false;
@@ -140,7 +177,7 @@ export const useOmok = () => {
     }
 
     if (!hasStones) {
-      return [{ row: 7, col: 7, score: 0, aiWin: false, humanWin: false }];
+      return [{ row: 7, col: 7, score: 0 }];
     }
 
     minR = Math.max(0, minR - 2);
@@ -167,17 +204,20 @@ export const useOmok = () => {
         }
         
         if (hasNeighbor) {
-          const attackScore = evaluateCell(board, r, c, aiPlayer);
-          const defenseScore = evaluateCell(board, r, c, humanPlayer);
+          board[r][c] = aiPlayer;
+          const aiEval = evaluateBoardState(board, aiPlayer, humanPlayer);
+          board[r][c] = null;
           
-          let score = attackScore * 1.1 + defenseScore;
-          const aiWin = attackScore >= 10000000;
-          const humanWin = defenseScore >= 10000000;
+          board[r][c] = humanPlayer;
+          const humanEval = evaluateBoardState(board, humanPlayer, aiPlayer);
+          board[r][c] = null;
           
-          if (aiWin) score += 50000000;
-          else if (humanWin) score += 20000000;
+          let moveScore = aiEval.score + humanEval.score; 
           
-          moves.push({ row: r, col: c, score, aiWin, humanWin });
+          if (aiEval.aiWin) moveScore += 500000000;
+          else if (humanEval.aiWin) moveScore += 200000000; 
+
+          moves.push({ row: r, col: c, score: moveScore });
         }
       }
     }
@@ -187,31 +227,20 @@ export const useOmok = () => {
   };
 
   const minimax = (board: BoardState, depth: number, alpha: number, beta: number, isMaximizing: boolean, aiPlayer: 'black' | 'white', humanPlayer: 'black' | 'white'): number => {
-    if (depth === 0) {
-      let maxAi = 0;
-      let maxHuman = 0;
-      for (let r = 0; r < BOARD_SIZE; r++) {
-        for (let c = 0; c < BOARD_SIZE; c++) {
-          if (board[r][c] !== null) continue;
-          const aiScore = evaluateCell(board, r, c, aiPlayer);
-          const humanScore = evaluateCell(board, r, c, humanPlayer);
-          if (aiScore > maxAi) maxAi = aiScore;
-          if (humanScore > maxHuman) maxHuman = humanScore;
-        }
-      }
-      return maxAi * 1.1 - maxHuman;
-    }
+    const boardEval = evaluateBoardState(board, aiPlayer, humanPlayer);
+    
+    if (boardEval.aiWin) return 50000000 + depth;
+    if (boardEval.humanWin) return -50000000 - depth;
+    if (depth === 0) return boardEval.score;
 
     const currentPlayer = isMaximizing ? aiPlayer : humanPlayer;
-    const moves = getCandidateMoves(board, aiPlayer, humanPlayer).slice(0, 15);
+    const moves = getCandidateMoves(board, aiPlayer, humanPlayer).slice(0, 12);
     
     if (moves.length === 0) return 0;
     
     if (isMaximizing) {
       let maxEval = -Infinity;
       for (const move of moves) {
-        if (move.aiWin) return 50000000 + depth;
-        
         board[move.row][move.col] = currentPlayer;
         const ev = minimax(board, depth - 1, alpha, beta, false, aiPlayer, humanPlayer);
         board[move.row][move.col] = null;
@@ -224,8 +253,6 @@ export const useOmok = () => {
     } else {
       let minEval = Infinity;
       for (const move of moves) {
-        if (move.humanWin) return -50000000 - depth;
-        
         board[move.row][move.col] = currentPlayer;
         const ev = minimax(board, depth - 1, alpha, beta, true, aiPlayer, humanPlayer);
         board[move.row][move.col] = null;
@@ -244,23 +271,20 @@ export const useOmok = () => {
     
     if (moves.length === 0) return { row: 7, col: 7 };
     
-    for (const move of moves) {
-      if (move.aiWin) return { row: move.row, col: move.col };
-    }
-    for (const move of moves) {
-      if (move.humanWin) return { row: move.row, col: move.col };
+    if (moves[0].score >= 200000000) {
+      return { row: moves[0].row, col: moves[0].col };
     }
     
     let bestScore = -Infinity;
     let bestMove = moves[0];
     
-    const searchMoves = moves.slice(0, 15);
+    const searchMoves = moves.slice(0, 12);
     for (const move of searchMoves) {
       currentBoard[move.row][move.col] = aiPlayer;
-      const score = minimax(currentBoard, 2, -Infinity, Infinity, false, aiPlayer, humanPlayer);
+      const score = minimax(currentBoard, 3, -Infinity, Infinity, false, aiPlayer, humanPlayer);
       currentBoard[move.row][move.col] = null;
       
-      const finalScore = score + Math.random() * 10;
+      const finalScore = score + Math.random();
 
       if (finalScore > bestScore) {
         bestScore = finalScore;
@@ -272,7 +296,7 @@ export const useOmok = () => {
   };
 
   const playMove = useCallback((row: number, col: number) => {
-    if (board[row][col] || winner || isAiThinking) return;
+    if (board[row][col] || winner || isAiThinking || currentPlayer !== humanColor) return;
 
     const newBoard = board.map(r => [...r]);
     newBoard[row][col] = currentPlayer;
@@ -298,35 +322,36 @@ export const useOmok = () => {
 
   // AI Turn
   useEffect(() => {
-    if (currentPlayer === 'white' && !winner) {
+    if (currentPlayer !== humanColor && !winner) {
       setIsAiThinking(true);
+      const aiPlayer = currentPlayer as 'black' | 'white';
       
       // Use setTimeout to allow UI to render human's move and show "AI Thinking"
       const timer = setTimeout(() => {
-        const bestMove = findBestMove(board, 'white');
+        const bestMove = findBestMove(board, aiPlayer);
         
         const newBoard = board.map(r => [...r]);
-        newBoard[bestMove.row][bestMove.col] = 'white';
+        newBoard[bestMove.row][bestMove.col] = aiPlayer;
         setBoard(newBoard);
         setLastMove({ row: bestMove.row, col: bestMove.col });
 
-        const winLine = checkWin(newBoard, bestMove.row, bestMove.col, 'white');
+        const winLine = checkWin(newBoard, bestMove.row, bestMove.col, aiPlayer);
         if (winLine) {
-          setWinner('white');
+          setWinner(aiPlayer);
           setWinningLine(winLine);
           setTimeout(() => setShowOverlay(true), 1500); // delay overlay
         } else if (checkDraw(newBoard)) {
           setWinner('draw');
           setTimeout(() => setShowOverlay(true), 500);
         } else {
-          setCurrentPlayer('black');
+          setCurrentPlayer(humanColor);
         }
         setIsAiThinking(false);
       }, 300); // 300ms delay for realism
       
       return () => clearTimeout(timer);
     }
-  }, [currentPlayer, board, winner]);
+  }, [currentPlayer, board, winner, humanColor]);
 
   return {
     board,
@@ -336,6 +361,9 @@ export const useOmok = () => {
     winningLine,
     lastMove,
     isAiThinking,
+    humanColor,
+    isColorDeciding,
+    decidedColor,
     playMove,
     resetGame
   };
