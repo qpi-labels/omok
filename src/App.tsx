@@ -6,16 +6,64 @@ import { db } from './firebase';
 import './omok.css';
 
 function App() {
+  const [isPracticeMode, setIsPracticeMode] = useState(() => {
+    return localStorage.getItem('omokPracticeMode') === 'true';
+  });
   const { profile, loginWithGoogle, logout, updateGameResult, rankBadge, isLoading } = useFirebase();
   const { board, currentPlayer, winner, showOverlay, winningLine, lastMove, isAiThinking, humanColor, isColorDeciding, decidedColor, difficulty, setDifficulty, playMove, resetGame, hasStarted } = useOmok((isWin, diff) => {
-    updateGameResult(diff, isWin);
+    if (!isPracticeMode) {
+      updateGameResult(diff, isWin);
+    }
   });
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showDiffInfo, setShowDiffInfo] = useState(false);
   const [showRankInfo, setShowRankInfo] = useState(false);
+  const [showGameInfo, setShowGameInfo] = useState(false);
   const [leaderboardData, setLeaderboardData] = useState<any[]>([]);
   const [cursorPos, setCursorPos] = useState({ row: 7, col: 7 });
+  const [hasCheckedAbandonment, setHasCheckedAbandonment] = useState(false);
+
+  const stoneCount = board.flat().filter(cell => cell !== null).length;
+
+  useEffect(() => {
+    if (isLoading || hasCheckedAbandonment) return;
+    
+    if (profile) {
+      const abandonedDiff = localStorage.getItem('omokOngoingGame');
+      const wasPractice = localStorage.getItem('omokOngoingPractice') === 'true';
+      if (abandonedDiff) {
+        if (!wasPractice) {
+          updateGameResult(abandonedDiff as any, false);
+        }
+        localStorage.removeItem('omokOngoingGame');
+        localStorage.removeItem('omokOngoingPractice');
+      }
+    } else {
+      localStorage.removeItem('omokOngoingGame');
+      localStorage.removeItem('omokOngoingPractice');
+    }
+    setHasCheckedAbandonment(true);
+  }, [isLoading, profile, updateGameResult, hasCheckedAbandonment]);
+
+  useEffect(() => {
+    if (hasStarted && !winner && !isColorDeciding && stoneCount >= 2) {
+      localStorage.setItem('omokOngoingGame', difficulty);
+      localStorage.setItem('omokOngoingPractice', String(isPracticeMode));
+    } else {
+      localStorage.removeItem('omokOngoingGame');
+      localStorage.removeItem('omokOngoingPractice');
+    }
+  }, [hasStarted, winner, isColorDeciding, difficulty, isPracticeMode, stoneCount]);
+
+  const handleNewGame = () => {
+    if (hasStarted && !winner && !isColorDeciding && stoneCount >= 2) {
+      if (!isPracticeMode) {
+        updateGameResult(difficulty, false);
+      }
+    }
+    resetGame();
+  };
 
   const handleOpenLeaderboard = async () => {
     if (!profile) {
@@ -38,6 +86,10 @@ function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem('omokPracticeMode', String(isPracticeMode));
+  }, [isPracticeMode]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -147,7 +199,7 @@ function App() {
           
           <div className="pdf-nav-group-header">CONTROLS</div>
           <div className="pdf-mt-100">
-            <button className="pdf-btn-primary pdf-w-full pdf-justify-center" onClick={resetGame}>
+            <button className="pdf-btn-primary pdf-w-full pdf-justify-center" onClick={handleNewGame}>
               New Game
             </button>
             <button 
@@ -156,6 +208,23 @@ function App() {
             >
               Toggle Theme
             </button>
+            <div className="pdf-flex-row pdf-items-center pdf-justify-between pdf-mt-100" style={{ padding: '8px 12px', backgroundColor: 'var(--color-bg-secondary)', borderRadius: '6px', border: '1px solid var(--color-border-default)', opacity: (hasStarted && !winner) ? 0.6 : 1 }}>
+              <span className="pdf-text-label-14-mono" style={{ color: 'var(--color-text-primary)' }}>연습 모드</span>
+              <label style={{ display: 'flex', alignItems: 'center', cursor: (hasStarted && !winner) ? 'not-allowed' : 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  checked={isPracticeMode} 
+                  onChange={(e) => setIsPracticeMode(e.target.checked)} 
+                  disabled={hasStarted && !winner}
+                  style={{ cursor: 'inherit', width: '16px', height: '16px', accentColor: 'var(--color-functional-red)' }}
+                />
+              </label>
+            </div>
+            {(hasStarted && !winner) && (
+              <div className="pdf-text-label-14-mono pdf-text-muted pdf-mt-050" style={{ fontSize: '10px', textAlign: 'right' }}>
+                게임 중에는 변경할 수 없습니다
+              </div>
+            )}
           </div>
 
           <div className="pdf-nav-group-header pdf-mt-400" style={{ position: 'relative', justifyContent: 'flex-start', gap: '6px' }}>
@@ -225,7 +294,43 @@ function App() {
             </div>
           </div>
 
-          <div className="pdf-nav-group-header">GAME INFO</div>
+          <div className="pdf-nav-group-header" style={{ position: 'relative', justifyContent: 'flex-start', gap: '6px' }}>
+            GAME INFO
+            <button 
+              onMouseEnter={() => setShowGameInfo(true)}
+              onMouseLeave={() => setShowGameInfo(false)}
+              style={{ background: 'none', border: 'none', cursor: 'help', padding: 0, display: 'flex', alignItems: 'center' }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--color-text-secondary)' }}>
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M12 16v-4"></path>
+                <path d="M12 8h.01"></path>
+              </svg>
+            </button>
+            {showGameInfo && (
+              <div className="pdf-panel" style={{ 
+                position: 'absolute', 
+                zIndex: 1000, 
+                left: '0', 
+                bottom: '100%', 
+                marginBottom: '8px', 
+                width: '260px', 
+                padding: '12px',
+                pointerEvents: 'none'
+              }}>
+                <div className="pdf-text-label-14-mono pdf-font-bold pdf-mb-050" style={{ color: 'var(--color-text-primary)' }}>오목 게임 룰 (자유 룰)</div>
+                <div className="pdf-text-label-14-mono pdf-text-muted" style={{ fontSize: '12px', lineHeight: '1.4' }}>
+                  <p className="pdf-mb-050">이 게임은 금수가 없는 <b>자유 룰(Freestyle)</b>입니다:</p>
+                  <ul className="pdf-mb-050" style={{ paddingLeft: '16px', margin: '4px 0' }}>
+                    <li><b>3-3 허용</b>: 흑과 백 모두 쌍삼을 만들 수 있습니다.</li>
+                    <li><b>4-4 허용</b>: 흑과 백 모두 4-4를 만들 수 있습니다.</li>
+                    <li><b>장목 허용</b>: 6개 이상의 돌을 이어도 승리로 인정합니다.</li>
+                  </ul>
+                  <p>누구든 먼저 가로, 세로, 대각선으로 5개 이상의 돌을 연속으로 놓으면 승리합니다.</p>
+                </div>
+              </div>
+            )}
+          </div>
           <div className="pdf-panel pdf-mt-100" style={{ margin: 0 }}>
             <ul className="pdf-text-copy-13-mono pdf-text-muted" style={{ listStyleType: 'none', padding: 0 }}>
               <li style={{ marginBottom: '8px' }}>15x15 Gomoku</li>
@@ -246,10 +351,11 @@ function App() {
 
           <div className="pdf-panel pdf-flex-row pdf-items-center pdf-justify-between pdf-mb-300">
             <div className="pdf-flex-row pdf-items-center pdf-gap-100">
-              <div className="pdf-indicator-dot" style={{ backgroundColor: currentPlayer === 'black' ? 'var(--color-text-primary)' : 'var(--color-bg-primary)', border: currentPlayer === 'white' ? '2px solid var(--color-border-hover)' : 'none', width: '16px', height: '16px', borderRadius: '50%' }} />
+              <div className="pdf-indicator-dot" style={{ backgroundColor: currentPlayer === 'black' ? '#1A1A1A' : '#F8F9FA', border: currentPlayer === 'white' ? '2px solid #C0C0C0' : 'none', width: '16px', height: '16px', borderRadius: '50%', boxShadow: currentPlayer === 'black' ? 'inset -2px -2px 4px rgba(255,255,255,0.2)' : 'inset -2px -2px 4px rgba(0,0,0,0.1)' }} />
               <div className="pdf-text-label-16">
                 {!hasStarted ? '게임 시작 버튼을 눌러주세요' : winner ? (winner === 'draw' ? '무승부' : `${winner === humanColor ? 'Your' : 'AI'} Win!`) : 
                  (currentPlayer === humanColor ? `Your Turn [${humanColor === 'black' ? 'Black' : 'White'}]` : 'AI is thinking...')}
+                {isPracticeMode && <span className="pdf-text-label-14-mono pdf-text-red" style={{ marginLeft: '8px', fontSize: '12px' }}>(연습 모드)</span>}
               </div>
             </div>
             <div className="pdf-font-mono pdf-text-label-14-mono pdf-text-muted">
