@@ -122,51 +122,153 @@ export const useOmok = () => {
     return score;
   };
 
+  const getCandidateMoves = (board: BoardState, aiPlayer: Player, humanPlayer: Player) => {
+    const moves: { row: number, col: number, score: number, aiWin: boolean, humanWin: boolean }[] = [];
+    
+    let minR = BOARD_SIZE, maxR = -1, minC = BOARD_SIZE, maxC = -1;
+    let hasStones = false;
+    for (let r = 0; r < BOARD_SIZE; r++) {
+      for (let c = 0; c < BOARD_SIZE; c++) {
+        if (board[r][c] !== null) {
+          hasStones = true;
+          minR = Math.min(minR, r);
+          maxR = Math.max(maxR, r);
+          minC = Math.min(minC, c);
+          maxC = Math.max(maxC, c);
+        }
+      }
+    }
+
+    if (!hasStones) {
+      return [{ row: 7, col: 7, score: 0, aiWin: false, humanWin: false }];
+    }
+
+    minR = Math.max(0, minR - 2);
+    maxR = Math.min(BOARD_SIZE - 1, maxR + 2);
+    minC = Math.max(0, minC - 2);
+    maxC = Math.min(BOARD_SIZE - 1, maxC + 2);
+
+    for (let r = minR; r <= maxR; r++) {
+      for (let c = minC; c <= maxC; c++) {
+        if (board[r][c] !== null) continue;
+        
+        let hasNeighbor = false;
+        for (let dr = -2; dr <= 2; dr++) {
+          for (let dc = -2; dc <= 2; dc++) {
+            if (dr === 0 && dc === 0) continue;
+            const nr = r + dr;
+            const nc = c + dc;
+            if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] !== null) {
+              hasNeighbor = true;
+              break;
+            }
+          }
+          if (hasNeighbor) break;
+        }
+        
+        if (hasNeighbor) {
+          const attackScore = evaluateCell(board, r, c, aiPlayer);
+          const defenseScore = evaluateCell(board, r, c, humanPlayer);
+          
+          let score = attackScore * 1.1 + defenseScore;
+          const aiWin = attackScore >= 10000000;
+          const humanWin = defenseScore >= 10000000;
+          
+          if (aiWin) score += 50000000;
+          else if (humanWin) score += 20000000;
+          
+          moves.push({ row: r, col: c, score, aiWin, humanWin });
+        }
+      }
+    }
+
+    moves.sort((a, b) => b.score - a.score);
+    return moves;
+  };
+
+  const minimax = (board: BoardState, depth: number, alpha: number, beta: number, isMaximizing: boolean, aiPlayer: Player, humanPlayer: Player): number => {
+    if (depth === 0) {
+      let maxAi = 0;
+      let maxHuman = 0;
+      for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+          if (board[r][c] !== null) continue;
+          const aiScore = evaluateCell(board, r, c, aiPlayer);
+          const humanScore = evaluateCell(board, r, c, humanPlayer);
+          if (aiScore > maxAi) maxAi = aiScore;
+          if (humanScore > maxHuman) maxHuman = humanScore;
+        }
+      }
+      return maxAi * 1.1 - maxHuman;
+    }
+
+    const currentPlayer = isMaximizing ? aiPlayer : humanPlayer;
+    const moves = getCandidateMoves(board, aiPlayer, humanPlayer).slice(0, 15);
+    
+    if (moves.length === 0) return 0;
+    
+    if (isMaximizing) {
+      let maxEval = -Infinity;
+      for (const move of moves) {
+        if (move.aiWin) return 50000000 + depth;
+        
+        board[move.row][move.col] = currentPlayer;
+        const ev = minimax(board, depth - 1, alpha, beta, false, aiPlayer, humanPlayer);
+        board[move.row][move.col] = null;
+        
+        maxEval = Math.max(maxEval, ev);
+        alpha = Math.max(alpha, ev);
+        if (beta <= alpha) break;
+      }
+      return maxEval;
+    } else {
+      let minEval = Infinity;
+      for (const move of moves) {
+        if (move.humanWin) return -50000000 - depth;
+        
+        board[move.row][move.col] = currentPlayer;
+        const ev = minimax(board, depth - 1, alpha, beta, true, aiPlayer, humanPlayer);
+        board[move.row][move.col] = null;
+        
+        minEval = Math.min(minEval, ev);
+        beta = Math.min(beta, ev);
+        if (beta <= alpha) break;
+      }
+      return minEval;
+    }
+  };
+
   const findBestMove = (currentBoard: BoardState, aiPlayer: 'black' | 'white') => {
     const humanPlayer = aiPlayer === 'black' ? 'white' : 'black';
-    let bestScore = -1;
-    let bestMoves: Position[] = [];
-
-    // If first move and board is empty, place in center
-    let isEmpty = true;
-    for (let r = 0; r < BOARD_SIZE; r++) {
-      for (let c = 0; c < BOARD_SIZE; c++) {
-        if (currentBoard[r][c] !== null) {
-          isEmpty = false;
-          break;
-        }
-      }
-      if (!isEmpty) break;
+    const moves = getCandidateMoves(currentBoard, aiPlayer, humanPlayer);
+    
+    if (moves.length === 0) return { row: 7, col: 7 };
+    
+    for (const move of moves) {
+      if (move.aiWin) return { row: move.row, col: move.col };
     }
-    if (isEmpty) return { row: 7, col: 7 };
+    for (const move of moves) {
+      if (move.humanWin) return { row: move.row, col: move.col };
+    }
+    
+    let bestScore = -Infinity;
+    let bestMove = moves[0];
+    
+    const searchMoves = moves.slice(0, 15);
+    for (const move of searchMoves) {
+      currentBoard[move.row][move.col] = aiPlayer;
+      const score = minimax(currentBoard, 2, -Infinity, Infinity, false, aiPlayer, humanPlayer);
+      currentBoard[move.row][move.col] = null;
+      
+      const finalScore = score + Math.random() * 10;
 
-    for (let r = 0; r < BOARD_SIZE; r++) {
-      for (let c = 0; c < BOARD_SIZE; c++) {
-        if (currentBoard[r][c] !== null) continue;
-
-        const attackScore = evaluateCell(currentBoard, r, c, aiPlayer);
-        const defenseScore = evaluateCell(currentBoard, r, c, humanPlayer);
-
-        if (attackScore >= 10000000) {
-          return { row: r, col: c }; // Immediate win
-        }
-
-        let score = attackScore * 1.1 + defenseScore;
-        if (defenseScore >= 10000000) {
-          score += 20000000; // Must block opponent win
-        }
-
-        if (score > bestScore) {
-          bestScore = score;
-          bestMoves = [{ row: r, col: c }];
-        } else if (score === bestScore) {
-          bestMoves.push({ row: r, col: c });
-        }
+      if (finalScore > bestScore) {
+        bestScore = finalScore;
+        bestMove = move;
       }
     }
-
-    // Randomize slightly between equal best moves
-    return bestMoves[Math.floor(Math.random() * bestMoves.length)];
+    
+    return bestMove;
   };
 
   const playMove = useCallback((row: number, col: number) => {
