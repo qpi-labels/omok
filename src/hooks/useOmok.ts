@@ -122,7 +122,7 @@ export const useOmok = () => {
     return score;
   };
 
-  const getCandidateMoves = (board: BoardState, aiPlayer: Player, humanPlayer: Player) => {
+  const getCandidateMoves = (board: BoardState, aiPlayer: 'black' | 'white', humanPlayer: 'black' | 'white') => {
     const moves: { row: number, col: number, score: number, aiWin: boolean, humanWin: boolean }[] = [];
     
     let minR = BOARD_SIZE, maxR = -1, minC = BOARD_SIZE, maxC = -1;
@@ -186,7 +186,7 @@ export const useOmok = () => {
     return moves;
   };
 
-  const minimax = (board: BoardState, depth: number, alpha: number, beta: number, isMaximizing: boolean, aiPlayer: Player, humanPlayer: Player): number => {
+  const minimax = (board: BoardState, depth: number, alpha: number, beta: number, isMaximizing: boolean, aiPlayer: 'black' | 'white', humanPlayer: 'black' | 'white'): number => {
     if (depth === 0) {
       let maxAi = 0;
       let maxHuman = 0;
