@@ -203,7 +203,7 @@ export const useOmok = () => {
     }
 
     const currentPlayer = isMaximizing ? aiPlayer : humanPlayer;
-    const moves = getCandidateMoves(board, aiPlayer, humanPlayer).slice(0, 20);
+    const moves = getCandidateMoves(board, aiPlayer, humanPlayer).slice(0, 15);
     
     if (moves.length === 0) return 0;
     
@@ -254,10 +254,10 @@ export const useOmok = () => {
     let bestScore = -Infinity;
     let bestMove = moves[0];
     
-    const searchMoves = moves.slice(0, 20);
+    const searchMoves = moves.slice(0, 15);
     for (const move of searchMoves) {
       currentBoard[move.row][move.col] = aiPlayer;
-      const score = minimax(currentBoard, 3, -Infinity, Infinity, false, aiPlayer, humanPlayer);
+      const score = minimax(currentBoard, 2, -Infinity, Infinity, false, aiPlayer, humanPlayer);
       currentBoard[move.row][move.col] = null;
       
       const finalScore = score + Math.random() * 10;
