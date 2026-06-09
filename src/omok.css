@@ -1,0 +1,175 @@
+/* ==========================================================================
+   OMOK BOARD STYLES
+   ========================================================================== */
+
+   .board-wrapper {
+    position: relative;
+    padding: 1rem;
+    background-color: var(--color-bg-primary);
+    border-radius: 4px;
+    border: 1px solid var(--color-border-default);
+    box-shadow: var(--shadow-hardware-bevel);
+    display: inline-block;
+  }
+  
+  .board {
+    display: grid;
+    grid-template-columns: repeat(15, 36px);
+    grid-template-rows: repeat(15, 36px);
+    gap: 0;
+    position: relative;
+    background-color: var(--color-bg-primary);
+  }
+  
+  .board::before {
+    content: '';
+    position: absolute;
+    top: 18px;
+    left: 18px;
+    right: 18px;
+    bottom: 18px;
+    background-size: 36px 36px;
+    background-image: 
+      linear-gradient(to right, var(--color-border-default) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--color-border-default) 1px, transparent 1px);
+    pointer-events: none;
+    z-index: 1;
+  }
+  
+  .board-lines-container {
+    position: absolute;
+    top: 18px;
+    left: 18px;
+    right: 18px;
+    bottom: 18px;
+    border: 1px solid var(--color-border-default);
+    pointer-events: none;
+    z-index: 1;
+  }
+  
+  .board-dot {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    background-color: var(--color-border-hover);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+    pointer-events: none;
+  }
+  
+  .cell {
+    width: 36px;
+    height: 36px;
+    position: relative;
+    cursor: pointer;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .cell:hover::after {
+    content: '';
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: var(--color-border-hover);
+    opacity: 0.5;
+  }
+  
+  .stone {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    position: absolute;
+    z-index: 4;
+    animation: dropStone 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  }
+  
+  @keyframes dropStone {
+    0% { transform: scale(0); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  
+  .stone.black {
+    background-color: var(--color-text-primary);
+    box-shadow: inset -2px -2px 4px rgba(255,255,255,0.2), inset 2px 2px 4px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.3);
+  }
+  
+  .stone.white {
+    background-color: var(--color-bg-primary);
+    border: 1px solid var(--color-border-default);
+    box-shadow: inset -2px -2px 4px rgba(0,0,0,0.1), inset 2px 2px 4px rgba(255,255,255,0.8), 0 2px 4px rgba(0,0,0,0.2);
+  }
+  
+  .stone.last-move::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: var(--color-functional-red);
+    box-shadow: var(--shadow-functional-glow);
+  }
+  
+  .stone-preview {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+  }
+  
+  .stone-preview.black {
+    background-color: var(--color-text-primary);
+  }
+  
+  .stone-preview.white {
+    background-color: var(--color-bg-primary);
+    border: 1px solid var(--color-border-default);
+  }
+
+  .stone.winning-stone {
+    animation: winningPulse 1.5s infinite;
+    z-index: 5;
+  }
+  
+  .stone.winning-stone::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: var(--color-functional-red);
+    box-shadow: var(--shadow-functional-glow);
+  }
+  
+  @keyframes winningPulse {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(173, 29, 29, 0.4); }
+    50% { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(173, 29, 29, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(173, 29, 29, 0); }
+  }
+  
+  .winner-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(8px);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    animation: pdfFadeIn 0.5s ease;
+  }
+  
+  [data-theme='dark'] .winner-overlay {
+    background: rgba(9, 9, 11, 0.8);
+  }
