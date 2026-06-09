@@ -75,13 +75,9 @@ export const useFirebase = () => {
   const updateGameResult = useCallback(async (difficulty: Difficulty, isWin: boolean) => {
     if (!user || !profile || !db) return;
 
-    if (difficulty === 'easy' || difficulty === 'normal') {
-      return; // Skip DB writes for low difficulty to save cost
-    }
-
     const pointsMap = {
-      'easy': { win: 0, loss: 0 },
-      'normal': { win: 0, loss: 0 },
+      'easy': { win: 10, loss: -5 },
+      'normal': { win: 20, loss: -10 },
       'hard': { win: 40, loss: -20 },
       'expert': { win: 80, loss: -40 },
       'god': { win: 200, loss: -100 }

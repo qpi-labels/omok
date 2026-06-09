@@ -13,7 +13,9 @@ function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showDiffInfo, setShowDiffInfo] = useState(false);
+  const [showRankInfo, setShowRankInfo] = useState(false);
   const [leaderboardData, setLeaderboardData] = useState<any[]>([]);
+  const [cursorPos, setCursorPos] = useState({ row: 7, col: 7 });
 
   const handleOpenLeaderboard = async () => {
     if (!profile) {
@@ -36,6 +38,32 @@ function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!hasStarted || winner || isAiThinking || currentPlayer !== humanColor || isColorDeciding) return;
+
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setCursorPos(prev => ({ ...prev, row: Math.max(0, prev.row - 1) }));
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setCursorPos(prev => ({ ...prev, row: Math.min(14, prev.row + 1) }));
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setCursorPos(prev => ({ ...prev, col: Math.max(0, prev.col - 1) }));
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        setCursorPos(prev => ({ ...prev, col: Math.min(14, prev.col + 1) }));
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        playMove(cursorPos.row, cursorPos.col);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [hasStarted, winner, isAiThinking, currentPlayer, humanColor, isColorDeciding, playMove, cursorPos]);
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
@@ -60,8 +88,40 @@ function App() {
                   {profile.photoURL && <img src={profile.photoURL} alt="Profile" style={{ width: '32px', height: '32px', borderRadius: '50%' }} />}
                   <div style={{ flex: 1 }}>
                     <div className="pdf-text-label-14-mono">{profile.displayName}</div>
-                    <div className="pdf-text-label-14-mono pdf-text-red" style={{ fontSize: '11px', marginTop: '4px' }}>
+                    <div className="pdf-text-label-14-mono pdf-text-red" style={{ fontSize: '11px', marginTop: '4px', position: 'relative', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       {rankBadge} ({profile.points} pts)
+                      <button 
+                        onMouseEnter={() => setShowRankInfo(true)}
+                        onMouseLeave={() => setShowRankInfo(false)}
+                        style={{ background: 'none', border: 'none', cursor: 'help', padding: 0, display: 'flex', alignItems: 'center' }}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--color-functional-red)' }}>
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <path d="M12 16v-4"></path>
+                          <path d="M12 8h.01"></path>
+                        </svg>
+                      </button>
+                      {showRankInfo && (
+                        <div className="pdf-panel" style={{ 
+                          position: 'absolute', 
+                          zIndex: 1000, 
+                          left: '0', 
+                          top: '100%', 
+                          marginTop: '8px', 
+                          width: '180px', 
+                          padding: '12px',
+                          pointerEvents: 'none'
+                        }}>
+                          <div className="pdf-text-label-14-mono pdf-font-bold pdf-mb-050" style={{ color: 'var(--color-text-primary)', fontSize: '12px' }}>티어 달성 조건</div>
+                          <ul className="pdf-text-label-14-mono pdf-text-muted" style={{ paddingLeft: '16px', margin: 0, fontSize: '11px', lineHeight: '1.5' }}>
+                            <li><b>Diamond</b>: 4000+ pts</li>
+                            <li><b>Platinum</b>: 2000+ pts</li>
+                            <li><b>Gold</b>: 1000+ pts</li>
+                            <li><b>Silver</b>: 500+ pts</li>
+                            <li><b>Bronze</b>: 0+ pts</li>
+                          </ul>
+                        </div>
+                      )}
                     </div>
                     <div className="pdf-text-label-14-mono pdf-text-muted" style={{ fontSize: '11px', marginTop: '2px' }}>
                       전적: {profile.wins}승 {profile.losses}패
@@ -124,8 +184,10 @@ function App() {
               }}>
                 <div className="pdf-text-label-14-mono pdf-font-bold pdf-mb-050" style={{ color: 'var(--color-text-primary)' }}>난이도 & 랭킹 안내</div>
                 <div className="pdf-text-label-14-mono pdf-text-muted" style={{ fontSize: '12px', lineHeight: '1.4' }}>
-                  <p className="pdf-mb-050">서버 통신 비용 절약을 위해 <b>하수, 중수</b> 난이도는 전적에 기록되지 않습니다.</p>
+                  <p className="pdf-mb-050">AI와의 대결 결과에 따라 다음 점수가 기록됩니다:</p>
                   <ul className="pdf-mb-100" style={{ paddingLeft: '16px', margin: '4px 0' }}>
+                    <li><b>하수</b>: 승리 +10 / 패배 -5</li>
+                    <li><b>중수</b>: 승리 +20 / 패배 -10</li>
                     <li><b>고수</b>: 승리 +40 / 패배 -20</li>
                     <li><b>초고수</b>: 승리 +80 / 패배 -40</li>
                     <li><b>신</b>: 승리 +200 / 패배 -100</li>
@@ -226,7 +288,11 @@ function App() {
                         <div
                           key={`${rowIndex}-${colIndex}`}
                           className="cell"
-                          onClick={() => playMove(rowIndex, colIndex)}
+                          onClick={() => {
+                            setCursorPos({ row: rowIndex, col: colIndex });
+                            playMove(rowIndex, colIndex);
+                          }}
+                          onMouseEnter={() => setCursorPos({ row: rowIndex, col: colIndex })}
                         >
                           {cell && (
                             <div className={`stone ${cell} ${isLastMove ? 'last-move' : ''} ${isWinningStone ? 'winning-stone' : ''}`}></div>
@@ -234,6 +300,25 @@ function App() {
                         </div>
                       );
                     })
+                  )}
+
+                  {/* Keyboard Cursor */}
+                  {hasStarted && !winner && currentPlayer === humanColor && !isAiThinking && !isColorDeciding && (
+                    <div 
+                      style={{
+                        position: 'absolute',
+                        width: '36px',
+                        height: '36px',
+                        top: `${cursorPos.row * 36 + 18}px`,
+                        left: `${cursorPos.col * 36 + 18}px`,
+                        transform: 'translate(-50%, -50%)',
+                        border: '2px solid var(--color-functional-red)',
+                        borderRadius: '4px',
+                        zIndex: 6,
+                        pointerEvents: 'none',
+                        boxShadow: 'var(--shadow-functional-glow)'
+                      }}
+                    />
                   )}
 
                   {isColorDeciding && (
