@@ -30,6 +30,7 @@ export const useOmok = (onGameEnd?: (isHumanWin: boolean, diff: Difficulty) => v
   const [difficulty, setDifficulty] = useState<Difficulty>(() => {
     return (localStorage.getItem('omokDifficulty') as Difficulty) || 'hard';
   });
+  const [playStyle, setPlayStyle] = useState<'aggressive' | 'conservative' | 'normal'>('normal');
   const [hasStarted, setHasStarted] = useState(false);
   
   const aiWorker = useRef<Worker | null>(null);
@@ -54,6 +55,12 @@ export const useOmok = (onGameEnd?: (isHumanWin: boolean, diff: Difficulty) => v
     setWinningLine([]);
     setLastMove(null);
     setIsAiThinking(false);
+
+    if (['hard', 'expert', 'god'].includes(difficulty)) {
+      setPlayStyle(Math.random() < 0.5 ? 'aggressive' : 'conservative');
+    } else {
+      setPlayStyle('normal');
+    }
     
     // Start animation
     setIsColorDeciding(true);
@@ -67,7 +74,7 @@ export const useOmok = (onGameEnd?: (isHumanWin: boolean, diff: Difficulty) => v
         setIsColorDeciding(false);
       }, 1500); // Show result for 1.5 seconds before hiding
     }, 1500); // 1.5 seconds spinning animation
-  }, []);
+  }, [difficulty]);
 
   const checkWin = (currentBoard: BoardState, row: number, col: number, player: 'black' | 'white'): Position[] | null => {
     const directions = [
@@ -170,10 +177,10 @@ export const useOmok = (onGameEnd?: (isHumanWin: boolean, diff: Difficulty) => v
         };
         
         // Post message to worker to compute next move
-        aiWorker.current.postMessage({ board, aiPlayer, difficulty, humanColor });
+        aiWorker.current.postMessage({ board, aiPlayer, difficulty, humanColor, playStyle });
       }
     }
-  }, [currentPlayer, board, winner, humanColor, isColorDeciding, hasStarted]);
+  }, [currentPlayer, board, winner, humanColor, isColorDeciding, hasStarted, difficulty, playStyle]);
 
   return {
     board,

@@ -27,6 +27,7 @@ const DIRECTIONS = [
 
 let globalStartTime = 0;
 let timeLimitMs = 3800; // Total 4s limit max
+let currentPlayStyle: 'aggressive' | 'conservative' | 'normal' = 'normal';
 
 function isTimeUp() {
   return performance.now() - globalStartTime > timeLimitMs;
@@ -94,7 +95,17 @@ function evaluateBoardState(board: BoardState, aiPlayer: 'black'|'white', humanP
     }
   }
 
-  return { aiWin, humanWin, score: aiScore * 1.1 - humanScore };
+  let aiMult = 1.1;
+  let humanMult = 1.0;
+  if (currentPlayStyle === 'aggressive') {
+    aiMult = 1.5;
+    humanMult = 0.8;
+  } else if (currentPlayStyle === 'conservative') {
+    aiMult = 0.8;
+    humanMult = 1.5;
+  }
+
+  return { aiWin, humanWin, score: aiScore * aiMult - humanScore * humanMult };
 }
 
 // Improved Evaluate Move for fast sorting
@@ -193,7 +204,17 @@ function getCandidateMoves(board: BoardState, aiPlayer: 'black'|'white', humanPl
         const humanEval = evaluateMoveFast(board, r, c, humanPlayer, aiPlayer);
         board[r][c] = null;
         
-        let moveScore = aiEval.score + humanEval.score; 
+        let aiMult = 1.0;
+        let humanMult = 1.0;
+        if (currentPlayStyle === 'aggressive') {
+          aiMult = 1.5;
+          humanMult = 0.8;
+        } else if (currentPlayStyle === 'conservative') {
+          aiMult = 0.8;
+          humanMult = 1.5;
+        }
+        
+        let moveScore = aiEval.score * aiMult + humanEval.score * humanMult; 
         
         if (aiEval.isWin) moveScore += 500000000;
         else if (humanEval.isWin) moveScore += 200000000; 
@@ -311,8 +332,9 @@ function findVCF(board: BoardState, attacker: 'black'|'white', defender: 'black'
 }
 
 self.onmessage = (e: MessageEvent) => {
-  const { board, aiPlayer, difficulty, humanColor } = e.data;
+  const { board, aiPlayer, difficulty, humanColor, playStyle } = e.data;
   globalStartTime = performance.now();
+  currentPlayStyle = playStyle || 'normal';
   
   // 4s constraint
   timeLimitMs = 3800; 
