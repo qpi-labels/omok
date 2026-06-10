@@ -8,6 +8,8 @@ export interface LeaderboardEntry {
   displayName: string;
   points: number;
   rankBadge: string;
+  govatarPlayStyle?: number;
+  govatarDifficulty?: string;
 }
 
 export const getRankBadge = (points: number) => {

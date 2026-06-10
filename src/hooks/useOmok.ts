@@ -18,7 +18,10 @@ const createEmptyBoard = (): BoardState => {
   return Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null));
 };
 
-export const useOmok = (onGameEnd?: (isHumanWin: boolean, diff: Difficulty) => void) => {
+export const useOmok = (
+  onGameEnd?: (isHumanWin: boolean, diff: Difficulty, turnsPlayed: number) => void,
+  govatarOpponent?: { uid: string; name: string; playStyle: number; difficulty: Difficulty } | null
+) => {
   const onGameEndRef = useRef(onGameEnd);
   useEffect(() => {
     onGameEndRef.current = onGameEnd;
@@ -68,12 +71,18 @@ export const useOmok = (onGameEnd?: (isHumanWin: boolean, diff: Difficulty) => v
     setAiStatsHistory([]);
     setLatestAiStats(null);
 
-    let initialPlayStyle = 0.5;
-    if (['hard', 'expert', 'god'].includes(difficulty)) {
-      initialPlayStyle = Math.random(); // 0.0 to 1.0 range
+    if (govatarOpponent) {
+      setDifficulty(govatarOpponent.difficulty);
+      setBasePlayStyle(govatarOpponent.playStyle);
+      setPlayStyle(govatarOpponent.playStyle);
+    } else {
+      let initialPlayStyle = 0.5;
+      if (['hard', 'expert', 'god'].includes(difficulty)) {
+        initialPlayStyle = Math.random(); // 0.0 to 1.0 range
+      }
+      setBasePlayStyle(initialPlayStyle);
+      setPlayStyle(initialPlayStyle);
     }
-    setBasePlayStyle(initialPlayStyle);
-    setPlayStyle(initialPlayStyle);
     
     // Start animation
     setIsColorDeciding(true);
@@ -87,7 +96,7 @@ export const useOmok = (onGameEnd?: (isHumanWin: boolean, diff: Difficulty) => v
         setIsColorDeciding(false);
       }, 1500); // Show result for 1.5 seconds before hiding
     }, 1500); // 1.5 seconds spinning animation
-  }, [difficulty]);
+  }, [difficulty, govatarOpponent]);
 
   const checkWin = (currentBoard: BoardState, row: number, col: number, player: 'black' | 'white'): Position[] | null => {
     const directions = [
@@ -146,7 +155,10 @@ export const useOmok = (onGameEnd?: (isHumanWin: boolean, diff: Difficulty) => v
       setWinner(humanPlayer);
       setWinningLine(winLine);
       setTimeout(() => setShowOverlay(true), 1500);
-      if (onGameEndRef.current) onGameEndRef.current(true, difficulty);
+      if (onGameEndRef.current) {
+        const turnsPlayed = newBoard.flat().filter(c => c !== null).length;
+        onGameEndRef.current(true, difficulty, turnsPlayed);
+      }
       return;
     }
     
@@ -193,7 +205,10 @@ export const useOmok = (onGameEnd?: (isHumanWin: boolean, diff: Difficulty) => v
             setWinner(aiPlayer);
             setWinningLine(winLine);
             setTimeout(() => setShowOverlay(true), 1500);
-            if (onGameEndRef.current) onGameEndRef.current(false, difficulty);
+            if (onGameEndRef.current) {
+              const turnsPlayed = newBoardAfterAi.flat().filter(c => c !== null).length;
+              onGameEndRef.current(false, difficulty, turnsPlayed);
+            }
           } else if (checkDraw(newBoardAfterAi)) {
             setWinner('draw');
             setTimeout(() => setShowOverlay(true), 500);

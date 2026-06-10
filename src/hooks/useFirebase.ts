@@ -12,6 +12,13 @@ export interface UserProfile {
   points: number;
   wins: number;
   losses: number;
+  govatarGamesPlayed?: number;
+  govatarAvgTurns?: number;
+  govatarAvgSkill?: number;
+  govatarPlayStyle?: number | null;
+  govatarDifficulty?: Difficulty | null;
+  govatarTrainingMode?: boolean;
+  govatarRewardReceived?: boolean;
 }
 
 export const useFirebase = () => {
@@ -41,7 +48,14 @@ export const useFirebase = () => {
               photoURL: currentUser.photoURL || '',
               points: 0,
               wins: 0,
-              losses: 0
+              losses: 0,
+              govatarGamesPlayed: 0,
+              govatarAvgTurns: 0,
+              govatarAvgSkill: 0,
+              govatarPlayStyle: null,
+              govatarDifficulty: null,
+              govatarTrainingMode: false,
+              govatarRewardReceived: false
             };
             await setDoc(userRef, newProfile);
             setProfile(newProfile);
@@ -72,7 +86,7 @@ export const useFirebase = () => {
     await firebaseSignOut(auth);
   };
 
-  const updateGameResult = useCallback(async (difficulty: Difficulty, isWin: boolean) => {
+  const updateGameResult = useCallback(async (difficulty: Difficulty, isWin: boolean, turnsPlayed: number = 0, govatarOpponent?: { uid: string; name: string; playStyle: number; difficulty: Difficulty } | null) => {
     if (!user || !profile || !db) return;
 
     const pointsMap = {
@@ -84,8 +98,55 @@ export const useFirebase = () => {
     };
 
     const deltaPoints = isWin ? pointsMap[difficulty].win : pointsMap[difficulty].loss;
-    const newPoints = Math.max(0, profile.points + deltaPoints);
-    const actualDelta = newPoints - profile.points;
+    let newPoints = Math.max(0, profile.points + deltaPoints);
+    let actualDelta = newPoints - profile.points;
+
+    const difficultyScores: Record<Difficulty, number> = {
+      'easy': 1, 'normal': 2, 'hard': 3, 'expert': 4, 'god': 5
+    };
+    const diffScore = difficultyScores[difficulty] || 2;
+    const gameSkillScore = isWin ? diffScore : Math.max(1, diffScore - 1);
+
+    let govatarGamesPlayed = profile.govatarGamesPlayed || 0;
+    let govatarAvgTurns = profile.govatarAvgTurns || 0;
+    let govatarAvgSkill = profile.govatarAvgSkill || 0;
+    
+    let govatarPlayStyle = profile.govatarPlayStyle || null;
+    let govatarDifficulty = profile.govatarDifficulty || null;
+    let govatarTrainingMode = profile.govatarTrainingMode || false;
+    let govatarRewardReceived = profile.govatarRewardReceived || false;
+
+    if (govatarTrainingMode) {
+      govatarGamesPlayed += 1;
+      govatarAvgTurns += turnsPlayed;
+      govatarAvgSkill += gameSkillScore;
+
+      if (govatarGamesPlayed === 5) {
+        const avgTurns = govatarAvgTurns / 5;
+        // Short games (<20) = 1.0 (aggressive), Long games (>60) = 0.0 (defensive)
+        govatarPlayStyle = Math.max(0, Math.min(1, 1 - (avgTurns - 20) / 40));
+        
+        const avgSkill = Math.round(govatarAvgSkill / 5);
+        const diffMap: Record<number, Difficulty> = { 1: 'easy', 2: 'normal', 3: 'hard', 4: 'expert', 5: 'god' };
+        govatarDifficulty = diffMap[avgSkill] || 'normal';
+        govatarTrainingMode = false; // Turn off training mode after completing
+      }
+    }
+
+    if (govatarDifficulty && !govatarRewardReceived && govatarGamesPlayed >= 5) {
+      const rewardMap: Record<Difficulty, number> = {
+        'easy': 50,
+        'normal': 150,
+        'hard': 400,
+        'expert': 1000,
+        'god': 2500
+      };
+      const bonusPoints = rewardMap[govatarDifficulty];
+      govatarRewardReceived = true;
+      newPoints += bonusPoints;
+      actualDelta += bonusPoints;
+      // Optional: Could trigger a notification here if we had a toast system
+    }
 
     const userRef = doc(db, 'users', user.uid);
     
@@ -94,7 +155,14 @@ export const useFirebase = () => {
       ...profile,
       points: newPoints,
       wins: profile.wins + (isWin ? 1 : 0),
-      losses: profile.losses + (isWin ? 0 : 1)
+      losses: profile.losses + (isWin ? 0 : 1),
+      govatarGamesPlayed,
+      govatarAvgTurns,
+      govatarAvgSkill,
+      govatarPlayStyle,
+      govatarDifficulty,
+      govatarTrainingMode,
+      govatarRewardReceived
     };
     setProfile(updatedProfile);
 
@@ -103,7 +171,14 @@ export const useFirebase = () => {
       await setDoc(userRef, {
         points: increment(actualDelta),
         wins: increment(isWin ? 1 : 0),
-        losses: increment(isWin ? 0 : 1)
+        losses: increment(isWin ? 0 : 1),
+        govatarGamesPlayed,
+        govatarAvgTurns,
+        govatarAvgSkill,
+        ...(govatarPlayStyle !== null && { govatarPlayStyle }),
+        ...(govatarDifficulty !== null && { govatarDifficulty }),
+        govatarTrainingMode,
+        govatarRewardReceived
         // We do NOT overwrite displayName or photoURL here to preserve custom nicknames
       }, { merge: true });
 
@@ -112,8 +187,39 @@ export const useFirebase = () => {
         uid: user.uid,
         displayName: profile.displayName || user.displayName || 'Guest',
         points: newPoints,
-        rankBadge: getRankBadge(newPoints)
+        rankBadge: getRankBadge(newPoints),
+        ...(govatarPlayStyle !== null && { govatarPlayStyle }),
+        ...(govatarDifficulty !== null && { govatarDifficulty: govatarDifficulty as string })
       });
+
+      // 3. Passive Income for Govatar Owner (if player loses against a Govatar)
+      if (!isWin && govatarOpponent && govatarOpponent.uid !== user.uid) {
+        try {
+          const ownerRef = doc(db, 'users', govatarOpponent.uid);
+          const ownerSnap = await getDoc(ownerRef);
+          if (ownerSnap.exists()) {
+            const ownerData = ownerSnap.data() as UserProfile;
+            const passivePointsMap: Record<Difficulty, number> = {
+              'easy': 2, 'normal': 5, 'hard': 10, 'expert': 20, 'god': 50
+            };
+            const passivePoints = passivePointsMap[govatarOpponent.difficulty] || 5;
+            const newOwnerPoints = (ownerData.points || 0) + passivePoints;
+            
+            await setDoc(ownerRef, { points: increment(passivePoints) }, { merge: true });
+            
+            await updateGlobalLeaderboard({
+              uid: ownerData.uid,
+              displayName: ownerData.displayName || 'Player',
+              points: newOwnerPoints,
+              rankBadge: getRankBadge(newOwnerPoints),
+              ...(ownerData.govatarPlayStyle !== null && ownerData.govatarPlayStyle !== undefined && { govatarPlayStyle: ownerData.govatarPlayStyle }),
+              ...(ownerData.govatarDifficulty !== null && ownerData.govatarDifficulty !== undefined && { govatarDifficulty: ownerData.govatarDifficulty as string })
+            });
+          }
+        } catch (e) {
+          console.error("Failed to give passive income:", e);
+        }
+      }
     } catch (error) {
       console.error('Error updating game result:', error);
       setProfile(profile); // Revert optimistic update
@@ -143,6 +249,47 @@ export const useFirebase = () => {
     }
   };
 
+  const startGovatarTraining = async () => {
+    if (!user || !profile || !db) return;
+    const userRef = doc(db, 'users', user.uid);
+    const newProfileState = { 
+      ...profile, 
+      govatarGamesPlayed: 0, 
+      govatarAvgTurns: 0, 
+      govatarAvgSkill: 0, 
+      govatarPlayStyle: null, 
+      govatarDifficulty: null, 
+      govatarTrainingMode: true 
+    };
+    setProfile(newProfileState);
+    await setDoc(userRef, {
+      govatarGamesPlayed: 0,
+      govatarAvgTurns: 0,
+      govatarAvgSkill: 0,
+      govatarPlayStyle: null,
+      govatarDifficulty: null,
+      govatarTrainingMode: true
+    }, { merge: true });
+  };
+
+  const cancelGovatarTraining = async () => {
+    if (!user || !profile || !db) return;
+    const userRef = doc(db, 'users', user.uid);
+    setProfile({ 
+      ...profile, 
+      govatarGamesPlayed: 0, 
+      govatarAvgTurns: 0, 
+      govatarAvgSkill: 0, 
+      govatarTrainingMode: false 
+    });
+    await setDoc(userRef, {
+      govatarGamesPlayed: 0,
+      govatarAvgTurns: 0,
+      govatarAvgSkill: 0,
+      govatarTrainingMode: false
+    }, { merge: true });
+  };
+
   return {
     user,
     profile,
@@ -151,6 +298,8 @@ export const useFirebase = () => {
     logout,
     updateGameResult,
     updateNickname,
+    startGovatarTraining,
+    cancelGovatarTraining,
     rankBadge: profile ? getRankBadge(profile.points) : 'Unranked'
   };
 };
