@@ -97,16 +97,6 @@ export const useFirebase = () => {
       'god': { win: 200, loss: -100 }
     };
 
-    const deltaPoints = isWin ? pointsMap[difficulty].win : pointsMap[difficulty].loss;
-    let newPoints = Math.max(0, profile.points + deltaPoints);
-    let actualDelta = newPoints - profile.points;
-
-    const difficultyScores: Record<Difficulty, number> = {
-      'easy': 1, 'normal': 2, 'hard': 3, 'expert': 4, 'god': 5
-    };
-    const diffScore = difficultyScores[difficulty] || 2;
-    const gameSkillScore = isWin ? diffScore : Math.max(1, diffScore - 1);
-
     let govatarGamesPlayed = profile.govatarGamesPlayed || 0;
     let govatarAvgTurns = profile.govatarAvgTurns || 0;
     let govatarAvgSkill = profile.govatarAvgSkill || 0;
@@ -115,6 +105,17 @@ export const useFirebase = () => {
     let govatarDifficulty = profile.govatarDifficulty || null;
     let govatarTrainingMode = profile.govatarTrainingMode || false;
     let govatarRewardReceived = profile.govatarRewardReceived || false;
+
+    // During training mode, regular win/loss points and stats are NOT updated.
+    const deltaPoints = govatarTrainingMode ? 0 : (isWin ? pointsMap[difficulty].win : pointsMap[difficulty].loss);
+    let newPoints = Math.max(0, profile.points + deltaPoints);
+    let actualDelta = newPoints - profile.points;
+
+    const difficultyScores: Record<Difficulty, number> = {
+      'easy': 1, 'normal': 2, 'hard': 3, 'expert': 4, 'god': 5
+    };
+    const diffScore = difficultyScores[difficulty] || 2;
+    const gameSkillScore = isWin ? diffScore : Math.max(1, diffScore - 1);
 
     if (govatarTrainingMode) {
       govatarGamesPlayed += 1;
@@ -150,12 +151,15 @@ export const useFirebase = () => {
 
     const userRef = doc(db, 'users', user.uid);
     
+    const incrementWins = govatarTrainingMode ? 0 : (isWin ? 1 : 0);
+    const incrementLosses = govatarTrainingMode ? 0 : (isWin ? 0 : 1);
+
     // Optimistic UI update
     const updatedProfile = {
       ...profile,
       points: newPoints,
-      wins: profile.wins + (isWin ? 1 : 0),
-      losses: profile.losses + (isWin ? 0 : 1),
+      wins: profile.wins + incrementWins,
+      losses: profile.losses + incrementLosses,
       govatarGamesPlayed,
       govatarAvgTurns,
       govatarAvgSkill,
@@ -170,8 +174,8 @@ export const useFirebase = () => {
       // 1. Update user document
       await setDoc(userRef, {
         points: increment(actualDelta),
-        wins: increment(isWin ? 1 : 0),
-        losses: increment(isWin ? 0 : 1),
+        wins: increment(incrementWins),
+        losses: increment(incrementLosses),
         govatarGamesPlayed,
         govatarAvgTurns,
         govatarAvgSkill,
