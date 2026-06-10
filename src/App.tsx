@@ -389,9 +389,9 @@ function App() {
             </div>
           </div>
 
-          <div className="pdf-mt-400" style={{ width: '100%', overflowX: 'auto', paddingBottom: '16px' }}>
-            <div className="pdf-flex-row" style={{ alignItems: 'flex-start', flexWrap: 'nowrap', width: 'fit-content', margin: '0 auto', padding: '0 32px' }}>
-              <div className="board-wrapper" style={{ flexShrink: 0, margin: (showAiStats && isPracticeMode) ? '0 16px 0 0' : '0', transition: 'margin 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
+          <div className="pdf-mt-400" style={{ width: '100%', paddingBottom: '16px' }}>
+            <div className="pdf-flex-row" style={{ alignItems: 'flex-start', flexWrap: 'wrap', width: '100%', margin: '0 auto', justifyContent: 'center', gap: (showAiStats && isPracticeMode) ? '16px' : '0px', transition: 'gap 0.5s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+              <div className="board-wrapper" style={{ flexShrink: 0, margin: '0', transition: 'margin 0.5s cubic-bezier(0.16, 1, 0.3, 1)' }}>
                 <div className="board" onMouseLeave={() => setHoverPos(null)}>
                   {/* The outer grid border */}
                   <div className="board-lines-container"></div>
@@ -518,9 +518,10 @@ function App() {
                 maxWidth: '340px',
                 minWidth: (showAiStats && isPracticeMode) ? '260px' : '0px',
                 opacity: (showAiStats && isPracticeMode) ? 1 : 0,
-                margin: (showAiStats && isPracticeMode) ? '0 0 0 16px' : '0px',
+                transform: (showAiStats && isPracticeMode) ? 'translateY(0)' : 'translateY(24px)',
+                margin: '0px',
                 overflow: 'hidden',
-                transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)'
+                transition: 'all 0.5s cubic-bezier(0.16, 1, 0.3, 1)'
               }}>
                 <div className="pdf-panel" style={{ width: '100%', margin: 0, boxSizing: 'border-box' }}>
                   <div className="pdf-flex-row pdf-items-center pdf-justify-between pdf-mb-200">
