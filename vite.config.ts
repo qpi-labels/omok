@@ -10,9 +10,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'icon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Omok Game',
-        short_name: 'Omok',
-        description: 'Play Omok (Gomoku) online with friends!',
+        name: '쿼터파이 오목',
+        short_name: '오목',
+        description: '쿼터파이 오목',
         theme_color: '#DCB35C',
         background_color: '#ffffff',
         display: 'fullscreen',
