@@ -37,6 +37,7 @@ export const useOmok = (onGameEnd?: (isHumanWin: boolean, diff: Difficulty) => v
   const [difficulty, setDifficulty] = useState<Difficulty>(() => {
     return (localStorage.getItem('omokDifficulty') as Difficulty) || 'hard';
   });
+  const [basePlayStyle, setBasePlayStyle] = useState<number>(0.5);
   const [playStyle, setPlayStyle] = useState<number>(0.5);
   const [hasStarted, setHasStarted] = useState(false);
   const [aiStatsHistory, setAiStatsHistory] = useState<AiStats[]>([]);
@@ -67,11 +68,12 @@ export const useOmok = (onGameEnd?: (isHumanWin: boolean, diff: Difficulty) => v
     setAiStatsHistory([]);
     setLatestAiStats(null);
 
+    let initialPlayStyle = 0.5;
     if (['hard', 'expert', 'god'].includes(difficulty)) {
-      setPlayStyle(Math.random()); // 0.0 to 1.0 range
-    } else {
-      setPlayStyle(0.5);
+      initialPlayStyle = Math.random(); // 0.0 to 1.0 range
     }
+    setBasePlayStyle(initialPlayStyle);
+    setPlayStyle(initialPlayStyle);
     
     // Start animation
     setIsColorDeciding(true);
@@ -192,11 +194,19 @@ export const useOmok = (onGameEnd?: (isHumanWin: boolean, diff: Difficulty) => v
           setIsAiThinking(false);
         };
         
+        let currentPlayStyle = playStyle;
+        if (difficulty === 'expert' || difficulty === 'god') {
+          // Change play style in real-time but keep the base tendency
+          const jitter = (Math.random() * 0.6) - 0.3; // -0.3 to 0.3
+          currentPlayStyle = Math.max(0, Math.min(1, basePlayStyle + jitter));
+          setPlayStyle(currentPlayStyle);
+        }
+
         // Post message to worker to compute next move
-        aiWorker.current.postMessage({ board, aiPlayer, difficulty, humanColor, playStyle });
+        aiWorker.current.postMessage({ board, aiPlayer, difficulty, humanColor, playStyle: currentPlayStyle });
       }
     }
-  }, [currentPlayer, board, winner, humanColor, isColorDeciding, hasStarted, difficulty, playStyle]);
+  }, [currentPlayer, board, winner, humanColor, isColorDeciding, hasStarted, difficulty, playStyle, basePlayStyle]);
 
   return {
     board,

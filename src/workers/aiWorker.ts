@@ -26,7 +26,7 @@ const DIRECTIONS = [
 ];
 
 let globalStartTime = 0;
-let timeLimitMs = 3800; // Total 4s limit max
+let timeLimitMs = 4800; // Total 5s limit max
 let currentPlayStyle: number = 0.5; // 0.0 (conservative) to 1.0 (aggressive)
 let nodesEvaluated = 0;
 
@@ -279,7 +279,8 @@ function findVCF(board: BoardState, attacker: 'black'|'white', defender: 'black'
   if (isAttackerTurn) {
     // Attacker must play a move that creates a 4 (or 5)
     // For VCF, we only consider moves that have a very high score (meaning it creates a 4)
-    const attackMoves = moves.filter(m => m.score > SCORES.BLOCKED_FOUR);
+    // A move creating a 4 has an evaluateMoveFast score > 5,000,000. So moveScore > 2,000,000 is a safe threshold.
+    const attackMoves = moves.filter(m => m.score > 2000000);
     for (const move of attackMoves) {
       board[move.row][move.col] = attacker;
       // Check if this move wins immediately
@@ -330,8 +331,8 @@ self.onmessage = (e: MessageEvent) => {
   currentPlayStyle = typeof playStyle === 'number' ? playStyle : 0.5;
   nodesEvaluated = 0;
   
-  // 4s constraint
-  timeLimitMs = 3800; 
+  // 5s constraint
+  timeLimitMs = 4800; 
   
   const humanPlayer = humanColor;
   
@@ -397,6 +398,11 @@ self.onmessage = (e: MessageEvent) => {
       const score = minimax(board, currentDepth, -Infinity, Infinity, false, aiPlayer, humanPlayer);
       board[move.row][move.col] = null;
 
+      if (isTimeUp()) {
+        completedDepth = false;
+        break;
+      }
+
       const finalScore = score + Math.random();
       if (finalScore > currentBestScore) {
         currentBestScore = finalScore;
@@ -404,11 +410,11 @@ self.onmessage = (e: MessageEvent) => {
       }
     }
 
-    if (completedDepth || currentBestScore > -Infinity) {
+    if (completedDepth || currentBestScore > 40000000) {
       overallBestMove = currentBestMove;
     }
     
-    if (isTimeUp()) break;
+    if (!completedDepth || isTimeUp()) break;
   }
 
   self.postMessage({ 
