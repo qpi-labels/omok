@@ -389,8 +389,8 @@ function App() {
             </div>
           </div>
 
-          <div className="pdf-mt-400" style={{ width: '100%', paddingBottom: '16px' }}>
-            <div className="pdf-flex-row" style={{ alignItems: 'flex-start', flexWrap: 'wrap', width: '100%', margin: '0 auto', justifyContent: 'center', gap: (showAiStats && isPracticeMode) ? '16px' : '0px', transition: 'gap 0.5s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+          <div className="pdf-mt-400" style={{ width: '100%', paddingBottom: '16px', overflowX: 'auto' }}>
+            <div className="pdf-flex-row" style={{ alignItems: 'flex-start', flexWrap: 'nowrap', width: 'max-content', margin: '0 auto', justifyContent: 'center', gap: (showAiStats && isPracticeMode) ? '16px' : '0px', transition: 'gap 0.5s cubic-bezier(0.16, 1, 0.3, 1)' }}>
               <div className="board-wrapper" style={{ flexShrink: 0, margin: '0', transition: 'margin 0.5s cubic-bezier(0.16, 1, 0.3, 1)' }}>
                 <div className="board" onMouseLeave={() => setHoverPos(null)}>
                   {/* The outer grid border */}
@@ -516,7 +516,7 @@ function App() {
               <div style={{
                 flex: (showAiStats && isPracticeMode) ? '1 1 340px' : '0 0 0px',
                 maxWidth: '340px',
-                minWidth: (showAiStats && isPracticeMode) ? '260px' : '0px',
+                minWidth: (showAiStats && isPracticeMode) ? '200px' : '0px',
                 opacity: (showAiStats && isPracticeMode) ? 1 : 0,
                 transform: (showAiStats && isPracticeMode) ? 'translateY(0)' : 'translateY(24px)',
                 margin: '0px',

@@ -3,21 +3,11 @@
    ========================================================================== */
 
 :root {
-  --cell-size: 36px;
-  --board-padding: 18px;
-  --stone-size: 28px;
-  --dot-size: 6px;
-  --stone-winning-size: 10px;
-}
-
-@media (max-width: 1300px) {
-  :root {
-    --cell-size: 30.6px;
-    --board-padding: 15.3px;
-    --stone-size: 23.8px;
-    --dot-size: 5.1px;
-    --stone-winning-size: 8.5px;
-  }
+  --cell-size: min(36px, 4.5vmin);
+  --board-padding: calc(var(--cell-size) / 2);
+  --stone-size: calc(var(--cell-size) * 0.77);
+  --dot-size: calc(var(--cell-size) * 0.16);
+  --stone-winning-size: calc(var(--cell-size) * 0.27);
 }
 
    .board-wrapper {
