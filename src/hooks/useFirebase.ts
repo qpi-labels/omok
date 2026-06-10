@@ -103,15 +103,14 @@ export const useFirebase = () => {
       await setDoc(userRef, {
         points: increment(actualDelta),
         wins: increment(isWin ? 1 : 0),
-        losses: increment(isWin ? 0 : 1),
-        displayName: user.displayName || 'Guest',
-        photoURL: user.photoURL || ''
+        losses: increment(isWin ? 0 : 1)
+        // We do NOT overwrite displayName or photoURL here to preserve custom nicknames
       }, { merge: true });
 
       // 2. Conditionally update global leaderboard
       await updateGlobalLeaderboard({
         uid: user.uid,
-        displayName: user.displayName || 'Guest',
+        displayName: profile.displayName || user.displayName || 'Guest',
         points: newPoints,
         rankBadge: getRankBadge(newPoints)
       });
@@ -121,6 +120,29 @@ export const useFirebase = () => {
     }
   }, [user, profile]);
 
+  const updateNickname = async (newNickname: string) => {
+    if (!user || !profile || !db) return;
+    const userRef = doc(db, 'users', user.uid);
+    
+    // Optimistic UI update
+    setProfile({ ...profile, displayName: newNickname });
+    
+    try {
+      await setDoc(userRef, { displayName: newNickname }, { merge: true });
+      
+      // Update global leaderboard so their new name shows up
+      await updateGlobalLeaderboard({
+        uid: user.uid,
+        displayName: newNickname,
+        points: profile.points,
+        rankBadge: getRankBadge(profile.points)
+      });
+    } catch (error) {
+      console.error('Error updating nickname:', error);
+      setProfile(profile); // Revert on failure
+    }
+  };
+
   return {
     user,
     profile,
@@ -128,6 +150,7 @@ export const useFirebase = () => {
     loginWithGoogle,
     logout,
     updateGameResult,
+    updateNickname,
     rankBadge: profile ? getRankBadge(profile.points) : 'Unranked'
   };
 };

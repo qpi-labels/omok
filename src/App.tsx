@@ -9,7 +9,7 @@ function App() {
   const [isPracticeMode, setIsPracticeMode] = useState(() => {
     return localStorage.getItem('omokPracticeMode') === 'true';
   });
-  const { profile, loginWithGoogle, logout, updateGameResult, rankBadge, isLoading } = useFirebase();
+  const { profile, loginWithGoogle, logout, updateGameResult, updateNickname, rankBadge, isLoading } = useFirebase();
   const { board, currentPlayer, winner, showOverlay, winningLine, lastMove, isAiThinking, humanColor, isColorDeciding, decidedColor, difficulty, setDifficulty, playMove, resetGame, hasStarted, aiStatsHistory, latestAiStats } = useOmok((isWin, diff) => {
     if (!isPracticeMode) {
       updateGameResult(diff, isWin);
@@ -147,7 +147,26 @@ function App() {
                 <div className="pdf-flex-row pdf-items-center pdf-gap-100">
                   {profile.photoURL && <img src={profile.photoURL} alt="Profile" style={{ width: '32px', height: '32px', borderRadius: '50%' }} />}
                   <div style={{ flex: 1 }}>
-                    <div className="pdf-text-label-14-mono">{profile.displayName}</div>
+                    <div className="pdf-flex-row pdf-items-center" style={{ gap: '6px' }}>
+                      <div className="pdf-text-label-14-mono">{profile.displayName}</div>
+                      <button 
+                        onClick={() => {
+                          const newName = prompt("새로운 닉네임을 입력하세요", profile.displayName);
+                          if (newName && newName.trim() !== '' && newName !== profile.displayName) {
+                            updateNickname(newName.trim());
+                          }
+                        }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center', opacity: 0.7 }}
+                        title="닉네임 변경"
+                        onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+                        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.7')}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--color-text-secondary)' }}>
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                      </button>
+                    </div>
                     <div className="pdf-text-label-14-mono pdf-text-red" style={{ fontSize: '11px', marginTop: '4px', position: 'relative', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       {rankBadge} ({profile.points} pts)
                       <button 

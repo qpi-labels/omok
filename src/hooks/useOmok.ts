@@ -196,9 +196,17 @@ export const useOmok = (onGameEnd?: (isHumanWin: boolean, diff: Difficulty) => v
         
         let currentPlayStyle = playStyle;
         if (difficulty === 'expert' || difficulty === 'god') {
-          // Change play style in real-time but keep the base tendency
-          const jitter = (Math.random() * 0.6) - 0.3; // -0.3 to 0.3
-          currentPlayStyle = Math.max(0, Math.min(1, basePlayStyle + jitter));
+          // 10% 확률로 성향이 팍팍 바뀜 (큰 변동)
+          if (Math.random() < 0.1) {
+            const jump = (Math.random() * 0.8) - 0.4;
+            currentPlayStyle = Math.max(0, Math.min(1, basePlayStyle + jump));
+          } else {
+            // 90% 확률로 현재 성향을 기반으로 서서히 부드럽게 변화 (Random Walk)
+            // 기준점(basePlayStyle)으로 돌아가려는 힘(Mean Reversion)을 약하게 줌
+            const pull = (basePlayStyle - playStyle) * 0.3; 
+            const walk = (Math.random() * 0.2) - 0.1; // -0.1 ~ +0.1의 부드러운 변화
+            currentPlayStyle = Math.max(0, Math.min(1, playStyle + walk + pull));
+          }
           setPlayStyle(currentPlayStyle);
         }
 
