@@ -390,13 +390,15 @@ function App() {
           </div>
 
           <div className="pdf-mt-400" style={{ width: '100%', paddingBottom: '16px', overflowX: 'auto' }}>
-            <div className="pdf-flex-row" style={{ alignItems: 'flex-start', flexWrap: 'nowrap', width: 'max-content', margin: '0 auto', justifyContent: 'center', gap: (showAiStats && isPracticeMode) ? '16px' : '0px', transition: 'gap 0.5s cubic-bezier(0.16, 1, 0.3, 1)' }}>
-              <div className="board-wrapper" style={{ flexShrink: 0, margin: '0', transition: 'margin 0.5s cubic-bezier(0.16, 1, 0.3, 1)' }}>
-                <div className="board" onMouseLeave={() => setHoverPos(null)}>
-                  {/* The outer grid border */}
-                  <div className="board-lines-container"></div>
-                  
-                  {/* Standard Omok/Go board dots */}
+            <div style={{ display: 'flex', width: 'max-content', minWidth: '100%', padding: '0 24px', boxSizing: 'border-box' }}>
+              <div style={{ flex: '1 1 0%' }}></div>
+              <div className="pdf-flex-row" style={{ flexShrink: 0, alignItems: 'flex-start', flexWrap: 'nowrap', gap: (showAiStats && isPracticeMode) ? '16px' : '0px', transition: 'gap 0.5s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+                <div className="board-wrapper" style={{ flexShrink: 0, margin: '0', transition: 'margin 0.5s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+                  <div className="board" onMouseLeave={() => setHoverPos(null)}>
+                    {/* The outer grid border */}
+                    <div className="board-lines-container"></div>
+                    
+                    {/* Standard Omok/Go board dots */}
                   {[
                     { r: 3, c: 3 }, { r: 3, c: 11 },
                     { r: 7, c: 7 },
@@ -514,9 +516,9 @@ function App() {
 
               {/* Pinned AI Stats Panel */}
               <div style={{
-                flex: (showAiStats && isPracticeMode) ? '1 1 340px' : '0 0 0px',
-                maxWidth: '340px',
-                minWidth: (showAiStats && isPracticeMode) ? '200px' : '0px',
+                flex: (showAiStats && isPracticeMode) ? '0 0 250px' : '0 0 0px',
+                maxWidth: '250px',
+                minWidth: (showAiStats && isPracticeMode) ? '250px' : '0px',
                 opacity: (showAiStats && isPracticeMode) ? 1 : 0,
                 transform: (showAiStats && isPracticeMode) ? 'translateY(0)' : 'translateY(24px)',
                 margin: '0px',
@@ -616,9 +618,11 @@ function App() {
                 </div>
               </div>
             </div>
+            <div style={{ flex: '1 1 0%' }}></div>
           </div>
-          </div>
-      </main>
+        </div>
+      </div>
+    </main>
       {/* Leaderboard Modal */}
       {showLeaderboard && (
         <div className="overlay" style={{ zIndex: 100 }} onClick={() => setShowLeaderboard(false)}>
