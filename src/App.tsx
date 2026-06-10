@@ -10,7 +10,7 @@ function App() {
     return localStorage.getItem('omokPracticeMode') === 'true';
   });
   const { profile, loginWithGoogle, logout, updateGameResult, rankBadge, isLoading } = useFirebase();
-  const { board, currentPlayer, winner, showOverlay, winningLine, lastMove, isAiThinking, humanColor, isColorDeciding, decidedColor, difficulty, setDifficulty, playMove, resetGame, hasStarted, playStyle, aiStatsHistory, latestAiStats } = useOmok((isWin, diff) => {
+  const { board, currentPlayer, winner, showOverlay, winningLine, lastMove, isAiThinking, humanColor, isColorDeciding, decidedColor, difficulty, setDifficulty, playMove, resetGame, hasStarted, aiStatsHistory, latestAiStats } = useOmok((isWin, diff) => {
     if (!isPracticeMode) {
       updateGameResult(diff, isWin);
     }
