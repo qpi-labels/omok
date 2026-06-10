@@ -2,6 +2,24 @@
    OMOK BOARD STYLES
    ========================================================================== */
 
+:root {
+  --cell-size: 36px;
+  --board-padding: 18px;
+  --stone-size: 28px;
+  --dot-size: 6px;
+  --stone-winning-size: 10px;
+}
+
+@media (max-width: 1300px) {
+  :root {
+    --cell-size: 30.6px;
+    --board-padding: 15.3px;
+    --stone-size: 23.8px;
+    --dot-size: 5.1px;
+    --stone-winning-size: 8.5px;
+  }
+}
+
    .board-wrapper {
     position: relative;
     padding: 2rem;
@@ -14,21 +32,22 @@
   
   .board {
     display: grid;
-    grid-template-columns: repeat(15, 36px);
-    grid-template-rows: repeat(15, 36px);
+    grid-template-columns: repeat(15, var(--cell-size));
+    grid-template-rows: repeat(15, var(--cell-size));
     gap: 0;
     position: relative;
     background-color: #D2A05B;
+    touch-action: manipulation;
   }
   
   .board::before {
     content: '';
     position: absolute;
-    top: 18px;
-    left: 18px;
-    right: 18px;
-    bottom: 18px;
-    background-size: 36px 36px;
+    top: var(--board-padding);
+    left: var(--board-padding);
+    right: var(--board-padding);
+    bottom: var(--board-padding);
+    background-size: var(--cell-size) var(--cell-size);
     background-image: 
       linear-gradient(to right, #9C7040 1px, transparent 1px),
       linear-gradient(to bottom, #9C7040 1px, transparent 1px);
@@ -38,10 +57,10 @@
   
   .board-lines-container {
     position: absolute;
-    top: 18px;
-    left: 18px;
-    right: 18px;
-    bottom: 18px;
+    top: var(--board-padding);
+    left: var(--board-padding);
+    right: var(--board-padding);
+    bottom: var(--board-padding);
     border: 1px solid #9C7040;
     pointer-events: none;
     z-index: 1;
@@ -49,8 +68,8 @@
   
   .board-dot {
     position: absolute;
-    width: 6px;
-    height: 6px;
+    width: var(--dot-size);
+    height: var(--dot-size);
     background-color: #9C7040;
     border-radius: 50%;
     transform: translate(-50%, -50%);
@@ -59,8 +78,8 @@
   }
   
   .cell {
-    width: 36px;
-    height: 36px;
+    width: var(--cell-size);
+    height: var(--cell-size);
     position: relative;
     cursor: pointer;
     z-index: 3;
@@ -80,8 +99,8 @@
   }
   
   .stone {
-    width: 28px;
-    height: 28px;
+    width: var(--stone-size);
+    height: var(--stone-size);
     border-radius: 50%;
     position: absolute;
     z-index: 4;
@@ -110,8 +129,8 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 6px;
-    height: 6px;
+    width: var(--dot-size);
+    height: var(--dot-size);
     border-radius: 50%;
     background-color: var(--color-functional-red);
     box-shadow: var(--shadow-functional-glow);
@@ -143,8 +162,8 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 10px;
-    height: 10px;
+    width: var(--stone-winning-size);
+    height: var(--stone-winning-size);
     border-radius: 50%;
     background-color: var(--color-functional-red);
     box-shadow: var(--shadow-functional-glow);
@@ -244,4 +263,27 @@
   @keyframes spinCoin {
     from { transform: rotateY(0deg); }
     to { transform: rotateY(360deg); }
+  }
+
+  .portrait-overlay {
+    display: none;
+  }
+
+  @media screen and (max-width: 900px) and (orientation: portrait) {
+    .portrait-overlay {
+      display: flex;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background-color: var(--color-bg-primary);
+      color: var(--color-text-primary);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 2rem;
+    }
+    .pdf-app {
+      display: none !important;
+    }
   }

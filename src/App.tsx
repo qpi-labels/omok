@@ -22,6 +22,7 @@ function App() {
   const [showGameInfo, setShowGameInfo] = useState(false);
   const [leaderboardData, setLeaderboardData] = useState<any[]>([]);
   const [cursorPos, setCursorPos] = useState({ row: 7, col: 7 });
+  const [hoverPos, setHoverPos] = useState<{row: number, col: number} | null>(null);
   const [hasCheckedAbandonment, setHasCheckedAbandonment] = useState(false);
   const [showAiStats, setShowAiStats] = useState(false);
 
@@ -120,8 +121,17 @@ function App() {
   }, [hasStarted, winner, isAiThinking, currentPlayer, humanColor, isColorDeciding, playMove, cursorPos]);
 
   return (
-    <div className="pdf-app">
-      {/* Sidebar for navigation / controls */}
+    <>
+      <div className="portrait-overlay">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="pdf-mb-200" style={{ color: 'var(--color-functional-red)' }}>
+          <rect x="5" y="2" width="14" height="20" rx="2" ry="2" transform="rotate(90 12 12)"></rect>
+          <line x1="12" y1="18" x2="12.01" y2="18"></line>
+        </svg>
+        <h2 className="pdf-text-heading-24 pdf-mb-100" style={{ color: 'var(--color-text-primary)' }}>가로 모드로 회전해 주세요</h2>
+        <p className="pdf-text-copy-14 pdf-text-muted">원활한 오목 플레이를 위해 기기를 가로로 눕혀주세요.</p>
+      </div>
+      <div className="pdf-app">
+        {/* Sidebar for navigation / controls */}
       <aside className="pdf-sidebar">
         <div className="pdf-p-300">
           <div className="pdf-flex-col pdf-mb-300">
@@ -356,15 +366,6 @@ function App() {
                  (currentPlayer === humanColor ? `Your Turn [${humanColor === 'black' ? 'Black' : 'White'}]` : 'AI is thinking...')}
                 {isPracticeMode && <span className="pdf-text-label-14-mono pdf-text-red" style={{ marginLeft: '8px', fontSize: '12px' }}>(연습 모드)</span>}
               </div>
-              {hasStarted && !winner && currentPlayer === humanColor && !isAiThinking && !isColorDeciding && (
-                 <button 
-                   className="pdf-btn-primary pdf-btn-sm" 
-                   onClick={() => playMove(cursorPos.row, cursorPos.col)}
-                   style={{ marginLeft: '16px' }}
-                 >
-                   착수 (Enter)
-                 </button>
-              )}
             </div>
             <div className="pdf-font-mono pdf-text-label-14-mono pdf-text-muted" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
               <div>Status: {!hasStarted ? 'WAITING' : winner ? 'GAME OVER' : 'ACTIVE'}</div>
@@ -388,11 +389,10 @@ function App() {
             </div>
           </div>
 
-          <div className="pdf-mt-400" style={{ width: '100%', overflowX: 'auto', paddingBottom: '16px', display: 'flex' }}>
-            <div style={{ flex: 1 }}></div>
-            <div className="pdf-flex-row" style={{ alignItems: 'flex-start', flexWrap: 'nowrap', flexShrink: 1, maxWidth: '100%' }}>
-              <div className="board-wrapper" style={{ flexShrink: 0, margin: (showAiStats && isPracticeMode) ? '0 16px' : '0', transition: 'margin 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
-                <div className="board">
+          <div className="pdf-mt-400" style={{ width: '100%', overflowX: 'auto', paddingBottom: '16px' }}>
+            <div className="pdf-flex-row" style={{ alignItems: 'flex-start', flexWrap: 'nowrap', width: 'fit-content', margin: '0 auto', padding: '0 32px' }}>
+              <div className="board-wrapper" style={{ flexShrink: 0, margin: (showAiStats && isPracticeMode) ? '0 16px 0 0' : '0', transition: 'margin 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
+                <div className="board" onMouseLeave={() => setHoverPos(null)}>
                   {/* The outer grid border */}
                   <div className="board-lines-container"></div>
                   
@@ -406,8 +406,8 @@ function App() {
                       key={`dot-${i}`} 
                       className="board-dot"
                       style={{
-                        top: `${dot.r * 36 + 18}px`,
-                        left: `${dot.c * 36 + 18}px`
+                        top: `calc(var(--cell-size) * ${dot.r} + var(--board-padding))`,
+                        left: `calc(var(--cell-size) * ${dot.c} + var(--board-padding))`
                       }}
                     />
                   ))}
@@ -422,9 +422,15 @@ function App() {
                           key={`${rowIndex}-${colIndex}`}
                           className="cell"
                           onClick={() => {
-                            setCursorPos({ row: rowIndex, col: colIndex });
+                            if (cursorPos.row === rowIndex && cursorPos.col === colIndex) {
+                              if (hasStarted && !winner && currentPlayer === humanColor && !isAiThinking && !isColorDeciding) {
+                                playMove(rowIndex, colIndex);
+                              }
+                            } else {
+                              setCursorPos({ row: rowIndex, col: colIndex });
+                            }
                           }}
-                          onMouseEnter={() => setCursorPos({ row: rowIndex, col: colIndex })}
+                          onMouseEnter={() => setHoverPos({ row: rowIndex, col: colIndex })}
                         >
                           {cell && (
                             <div className={`stone ${cell} ${isLastMove ? 'last-move' : ''} ${isWinningStone ? 'winning-stone' : ''}`}></div>
@@ -439,16 +445,34 @@ function App() {
                     <div 
                       style={{
                         position: 'absolute',
-                        width: '36px',
-                        height: '36px',
-                        top: `${cursorPos.row * 36 + 18}px`,
-                        left: `${cursorPos.col * 36 + 18}px`,
+                        width: 'var(--cell-size)',
+                        height: 'var(--cell-size)',
+                        top: `calc(var(--cell-size) * ${cursorPos.row} + var(--board-padding))`,
+                        left: `calc(var(--cell-size) * ${cursorPos.col} + var(--board-padding))`,
                         transform: 'translate(-50%, -50%)',
                         border: '2px solid var(--color-functional-red)',
                         borderRadius: '4px',
                         zIndex: 6,
                         pointerEvents: 'none',
                         boxShadow: 'var(--shadow-functional-glow)'
+                      }}
+                    />
+                  )}
+
+                  {/* Mouse Hover Cursor */}
+                  {hasStarted && !winner && currentPlayer === humanColor && !isAiThinking && !isColorDeciding && hoverPos && (hoverPos.row !== cursorPos.row || hoverPos.col !== cursorPos.col) && (
+                    <div 
+                      style={{
+                        position: 'absolute',
+                        width: 'var(--cell-size)',
+                        height: 'var(--cell-size)',
+                        top: `calc(var(--cell-size) * ${hoverPos.row} + var(--board-padding))`,
+                        left: `calc(var(--cell-size) * ${hoverPos.col} + var(--board-padding))`,
+                        transform: 'translate(-50%, -50%)',
+                        border: '2px solid rgba(128, 128, 128, 0.5)',
+                        borderRadius: '4px',
+                        zIndex: 5,
+                        pointerEvents: 'none'
                       }}
                     />
                   )}
@@ -492,9 +516,9 @@ function App() {
               <div style={{
                 flex: (showAiStats && isPracticeMode) ? '1 1 340px' : '0 0 0px',
                 maxWidth: '340px',
-                minWidth: (showAiStats && isPracticeMode) ? '200px' : '0px',
+                minWidth: (showAiStats && isPracticeMode) ? '260px' : '0px',
                 opacity: (showAiStats && isPracticeMode) ? 1 : 0,
-                margin: (showAiStats && isPracticeMode) ? '0 16px' : '0px',
+                margin: (showAiStats && isPracticeMode) ? '0 0 0 16px' : '0px',
                 overflow: 'hidden',
                 transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)'
               }}>
@@ -591,7 +615,6 @@ function App() {
                 </div>
               </div>
             </div>
-            <div style={{ flex: 1 }}></div>
           </div>
           </div>
       </main>
@@ -632,6 +655,7 @@ function App() {
 
 
     </div>
+    </>
   );
 }
 
