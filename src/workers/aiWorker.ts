@@ -26,9 +26,31 @@ const DIRECTIONS = [
 ];
 
 let globalStartTime = 0;
-let timeLimitMs = 4800; // Total 5s limit max
+let timeLimitMs = 4300; // Total 4.5s limit max
 let currentPlayStyle: number = 0.5; // 0.0 (conservative) to 1.0 (aggressive)
 let nodesEvaluated = 0;
+let currentGlobalDepth = 0;
+let currentGlobalBestScore = 0;
+let lastPostTime = 0;
+
+function reportProgress() {
+  if ((nodesEvaluated & 8191) === 0) {
+    const now = performance.now();
+    if (now - lastPostTime > 60) {
+      self.postMessage({
+        type: 'progress',
+        stats: {
+          nodesEvaluated,
+          searchDepth: currentGlobalDepth,
+          timeTakenMs: now - globalStartTime,
+          evalScore: currentGlobalBestScore,
+          playStyle: currentPlayStyle
+        }
+      });
+      lastPostTime = now;
+    }
+  }
+}
 
 function isTimeUp() {
   return performance.now() - globalStartTime > timeLimitMs;
@@ -37,6 +59,7 @@ function isTimeUp() {
 // Full board evaluation
 function evaluateBoardState(board: BoardState, aiPlayer: 'black'|'white', humanPlayer: 'black'|'white'): { aiWin: boolean, humanWin: boolean, score: number } {
   nodesEvaluated++;
+  reportProgress();
   let aiScore = 0;
   let humanScore = 0;
   let aiWin = false;
@@ -110,6 +133,7 @@ function evaluateBoardState(board: BoardState, aiPlayer: 'black'|'white', humanP
 // Improved Evaluate Move for fast sorting
 function evaluateMoveFast(board: BoardState, r: number, c: number, player: 'black'|'white', opponent: 'black'|'white'): { score: number, isWin: boolean } {
   nodesEvaluated++;
+  reportProgress();
   const centerDist = Math.max(Math.abs(r - 7), Math.abs(c - 7));
   let score = (7 - centerDist) * 10;
   let isWin = false;
@@ -221,7 +245,7 @@ function getCandidateMoves(board: BoardState, aiPlayer: 'black'|'white', humanPl
   return moves;
 }
 
-function minimax(board: BoardState, depth: number, alpha: number, beta: number, isMaximizing: boolean, aiPlayer: 'black'|'white', humanPlayer: 'black'|'white'): number {
+function minimax(board: BoardState, depth: number, alpha: number, beta: number, isMaximizing: boolean, aiPlayer: 'black'|'white', humanPlayer: 'black'|'white', branchLimitFn?: (d: number, t: boolean) => number): number {
   if (isTimeUp()) return isMaximizing ? -Infinity : Infinity;
 
   const boardEval = evaluateBoardState(board, aiPlayer, humanPlayer);
@@ -235,14 +259,16 @@ function minimax(board: BoardState, depth: number, alpha: number, beta: number, 
   
   if (moves.length === 0) return 0;
   
-  let branchLimit = depth >= 6 ? 10 : depth >= 4 ? 8 : 6;
+  const isLocalTactical = moves[0].score > 40000;
+  let branchLimit = branchLimitFn ? branchLimitFn(depth, isLocalTactical) : (depth >= 6 ? 10 : depth >= 4 ? 8 : 6);
+  
   const searchMoves = moves[0].score >= 200000000 ? [moves[0]] : moves.slice(0, branchLimit);
   
   if (isMaximizing) {
     let maxEval = -Infinity;
     for (const move of searchMoves) {
       board[move.row][move.col] = currentPlayer;
-      const ev = minimax(board, depth - 1, alpha, beta, false, aiPlayer, humanPlayer);
+      const ev = minimax(board, depth - 1, alpha, beta, false, aiPlayer, humanPlayer, branchLimitFn);
       board[move.row][move.col] = null;
       
       if (isTimeUp()) return 0;
@@ -256,7 +282,7 @@ function minimax(board: BoardState, depth: number, alpha: number, beta: number, 
     let minEval = Infinity;
     for (const move of searchMoves) {
       board[move.row][move.col] = currentPlayer;
-      const ev = minimax(board, depth - 1, alpha, beta, true, aiPlayer, humanPlayer);
+      const ev = minimax(board, depth - 1, alpha, beta, true, aiPlayer, humanPlayer, branchLimitFn);
       board[move.row][move.col] = null;
       
       if (isTimeUp()) return 0;
@@ -328,11 +354,14 @@ function findVCF(board: BoardState, attacker: 'black'|'white', defender: 'black'
 self.onmessage = (e: MessageEvent) => {
   const { board, aiPlayer, difficulty, humanColor, playStyle } = e.data;
   globalStartTime = performance.now();
+  lastPostTime = globalStartTime;
   currentPlayStyle = typeof playStyle === 'number' ? playStyle : 0.5;
   nodesEvaluated = 0;
+  currentGlobalDepth = 1;
+  currentGlobalBestScore = 0;
   
-  // 5s constraint
-  timeLimitMs = 4800; 
+  // 4.5s constraint
+  timeLimitMs = 4300; 
   
   const humanPlayer = humanColor;
   
@@ -343,6 +372,7 @@ self.onmessage = (e: MessageEvent) => {
     const vcfMove = findVCF(board, aiPlayer, humanPlayer, vcfDepth, true);
     if (vcfMove && !isTimeUp()) {
       self.postMessage({ 
+        type: 'result',
         bestMove: vcfMove, 
         isVCF: true,
         stats: { nodesEvaluated, searchDepth: vcfDepth, timeTakenMs: performance.now() - globalStartTime, evalScore: 99999999, playStyle: currentPlayStyle }
@@ -354,16 +384,18 @@ self.onmessage = (e: MessageEvent) => {
   // 2. Normal Minimax
   const moves = getCandidateMoves(board, aiPlayer, humanPlayer);
   if (moves.length === 0) {
-    self.postMessage({ 
-      bestMove: { row: 7, col: 7 },
+      self.postMessage({ 
+        type: 'result',
+        bestMove: { row: 7, col: 7 },
       stats: { nodesEvaluated, searchDepth: 0, timeTakenMs: performance.now() - globalStartTime, evalScore: 0, playStyle: currentPlayStyle }
     });
     return;
   }
 
   if (moves[0].score >= 200000000) {
-    self.postMessage({ 
-      bestMove: { row: moves[0].row, col: moves[0].col },
+      self.postMessage({ 
+        type: 'result',
+        bestMove: { row: moves[0].row, col: moves[0].col },
       stats: { nodesEvaluated, searchDepth: 1, timeTakenMs: performance.now() - globalStartTime, evalScore: moves[0].score, playStyle: currentPlayStyle }
     });
     return;
@@ -376,15 +408,38 @@ self.onmessage = (e: MessageEvent) => {
     'expert': 6,
     'god': 8
   };
-  const maxSearchDepth = depthMap[difficulty as Difficulty] || 4;
+  
+  let maxSearchDepth = depthMap[difficulty as Difficulty] || 4;
+  let rootBranchLimit = 10;
+  let branchLimitFn = (d: number, tactical: boolean) => d >= 6 ? 10 : d >= 4 ? 8 : 6;
+
+  if (difficulty === 'expert' || difficulty === 'god') {
+    const isTactical = moves.length > 0 && moves[0].score > 40000;
+    if (isTactical) {
+      // Tactical Situation: Narrow & Deep
+      maxSearchDepth = difficulty === 'god' ? 12 : 8;
+      rootBranchLimit = difficulty === 'god' ? 8 : 6;
+      branchLimitFn = (d: number, tactical: boolean) => tactical ? 6 : 4;
+    } else {
+      // Strategic Situation: Wide & Shallow
+      maxSearchDepth = difficulty === 'god' ? 8 : 6;
+      rootBranchLimit = difficulty === 'god' ? 16 : 12; // Adjusted down for 4.5s
+      branchLimitFn = (d: number, tactical: boolean) => tactical ? 8 : (d >= 6 ? 10 : d >= 4 ? 8 : 6);
+    }
+  } else {
+    rootBranchLimit = maxSearchDepth >= 6 ? 12 : maxSearchDepth >= 4 ? 10 : 8;
+  }
   
   let overallBestMove = moves[0];
+  let lastCompletedDepth = 1;
+
+  self.postMessage({ type: 'progress', stats: { nodesEvaluated: 0, searchDepth: 1, timeTakenMs: 0, evalScore: moves[0].score, playStyle: currentPlayStyle } });
 
   for (let currentDepth = 2; currentDepth <= maxSearchDepth; currentDepth++) {
+    currentGlobalDepth = currentDepth;
     let currentBestScore = -Infinity;
     let currentBestMove = moves[0];
     
-    const rootBranchLimit = currentDepth >= 6 ? 12 : currentDepth >= 4 ? 10 : 8;
     const searchMoves = moves.slice(0, rootBranchLimit);
     let completedDepth = true;
 
@@ -395,7 +450,7 @@ self.onmessage = (e: MessageEvent) => {
       }
       
       board[move.row][move.col] = aiPlayer;
-      const score = minimax(board, currentDepth, -Infinity, Infinity, false, aiPlayer, humanPlayer);
+      const score = minimax(board, currentDepth, -Infinity, Infinity, false, aiPlayer, humanPlayer, branchLimitFn);
       board[move.row][move.col] = null;
 
       if (isTimeUp()) {
@@ -407,22 +462,25 @@ self.onmessage = (e: MessageEvent) => {
       if (finalScore > currentBestScore) {
         currentBestScore = finalScore;
         currentBestMove = move;
+        currentGlobalBestScore = currentBestScore;
       }
     }
 
     if (completedDepth || currentBestScore > 40000000) {
       overallBestMove = currentBestMove;
+      lastCompletedDepth = currentDepth;
     }
     
     if (!completedDepth || isTimeUp()) break;
   }
 
   self.postMessage({ 
+    type: 'result',
     bestMove: { row: overallBestMove.row, col: overallBestMove.col }, 
     isVCF: false,
     stats: { 
       nodesEvaluated, 
-      searchDepth: maxSearchDepth, 
+      searchDepth: lastCompletedDepth, 
       timeTakenMs: performance.now() - globalStartTime, 
       evalScore: overallBestMove.score,
       playStyle: currentPlayStyle 

@@ -168,7 +168,14 @@ export const useOmok = (onGameEnd?: (isHumanWin: boolean, diff: Difficulty) => v
       
       if (aiWorker.current) {
         aiWorker.current.onmessage = (e) => {
-          const { bestMove, stats } = e.data;
+          const { type, bestMove, stats } = e.data;
+          
+          if (type === 'progress') {
+            if (stats) {
+              setLatestAiStats(stats);
+            }
+            return;
+          }
           
           if (stats) {
             setLatestAiStats(stats);
