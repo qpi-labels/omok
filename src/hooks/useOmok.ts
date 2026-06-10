@@ -4,6 +4,13 @@ export type Player = 'black' | 'white' | null;
 export type BoardState = Player[][];
 export type Position = { row: number; col: number };
 export type Difficulty = 'easy' | 'normal' | 'hard' | 'expert' | 'god';
+export interface AiStats {
+  nodesEvaluated: number;
+  searchDepth: number;
+  timeTakenMs: number;
+  evalScore: number;
+  playStyle: number;
+}
 
 const BOARD_SIZE = 15;
 
@@ -30,8 +37,10 @@ export const useOmok = (onGameEnd?: (isHumanWin: boolean, diff: Difficulty) => v
   const [difficulty, setDifficulty] = useState<Difficulty>(() => {
     return (localStorage.getItem('omokDifficulty') as Difficulty) || 'hard';
   });
-  const [playStyle, setPlayStyle] = useState<'aggressive' | 'conservative' | 'normal'>('normal');
+  const [playStyle, setPlayStyle] = useState<number>(0.5);
   const [hasStarted, setHasStarted] = useState(false);
+  const [aiStatsHistory, setAiStatsHistory] = useState<AiStats[]>([]);
+  const [latestAiStats, setLatestAiStats] = useState<AiStats | null>(null);
   
   const aiWorker = useRef<Worker | null>(null);
 
@@ -55,11 +64,13 @@ export const useOmok = (onGameEnd?: (isHumanWin: boolean, diff: Difficulty) => v
     setWinningLine([]);
     setLastMove(null);
     setIsAiThinking(false);
+    setAiStatsHistory([]);
+    setLatestAiStats(null);
 
     if (['hard', 'expert', 'god'].includes(difficulty)) {
-      setPlayStyle(Math.random() < 0.5 ? 'aggressive' : 'conservative');
+      setPlayStyle(Math.random()); // 0.0 to 1.0 range
     } else {
-      setPlayStyle('normal');
+      setPlayStyle(0.5);
     }
     
     // Start animation
@@ -155,7 +166,12 @@ export const useOmok = (onGameEnd?: (isHumanWin: boolean, diff: Difficulty) => v
       
       if (aiWorker.current) {
         aiWorker.current.onmessage = (e) => {
-          const { bestMove } = e.data;
+          const { bestMove, stats } = e.data;
+          
+          if (stats) {
+            setLatestAiStats(stats);
+            setAiStatsHistory(prev => [...prev, stats]);
+          }
           
           const newBoardAfterAi = board.map(r => [...r]);
           newBoardAfterAi[bestMove.row][bestMove.col] = aiPlayer;
@@ -197,6 +213,9 @@ export const useOmok = (onGameEnd?: (isHumanWin: boolean, diff: Difficulty) => v
     setDifficulty,
     playMove,
     resetGame,
-    hasStarted
+    hasStarted,
+    playStyle,
+    aiStatsHistory,
+    latestAiStats
   };
 };

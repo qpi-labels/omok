@@ -10,7 +10,7 @@ function App() {
     return localStorage.getItem('omokPracticeMode') === 'true';
   });
   const { profile, loginWithGoogle, logout, updateGameResult, rankBadge, isLoading } = useFirebase();
-  const { board, currentPlayer, winner, showOverlay, winningLine, lastMove, isAiThinking, humanColor, isColorDeciding, decidedColor, difficulty, setDifficulty, playMove, resetGame, hasStarted } = useOmok((isWin, diff) => {
+  const { board, currentPlayer, winner, showOverlay, winningLine, lastMove, isAiThinking, humanColor, isColorDeciding, decidedColor, difficulty, setDifficulty, playMove, resetGame, hasStarted, playStyle, aiStatsHistory, latestAiStats } = useOmok((isWin, diff) => {
     if (!isPracticeMode) {
       updateGameResult(diff, isWin);
     }
@@ -23,6 +23,7 @@ function App() {
   const [leaderboardData, setLeaderboardData] = useState<any[]>([]);
   const [cursorPos, setCursorPos] = useState({ row: 7, col: 7 });
   const [hasCheckedAbandonment, setHasCheckedAbandonment] = useState(false);
+  const [showAiStats, setShowAiStats] = useState(false);
 
   const stoneCount = board.flat().filter(cell => cell !== null).length;
 
@@ -89,6 +90,7 @@ function App() {
 
   useEffect(() => {
     localStorage.setItem('omokPracticeMode', String(isPracticeMode));
+    if (!isPracticeMode) setShowAiStats(false);
   }, [isPracticeMode]);
 
   useEffect(() => {
@@ -216,6 +218,7 @@ function App() {
                 />
               </label>
             </div>
+
             {(hasStarted && !winner) && (
               <div className="pdf-text-label-14-mono pdf-text-muted pdf-mt-050" style={{ fontSize: '10px', textAlign: 'right' }}>
                 게임 중에는 변경할 수 없습니다
@@ -353,14 +356,42 @@ function App() {
                  (currentPlayer === humanColor ? `Your Turn [${humanColor === 'black' ? 'Black' : 'White'}]` : 'AI is thinking...')}
                 {isPracticeMode && <span className="pdf-text-label-14-mono pdf-text-red" style={{ marginLeft: '8px', fontSize: '12px' }}>(연습 모드)</span>}
               </div>
+              {hasStarted && !winner && currentPlayer === humanColor && !isAiThinking && !isColorDeciding && (
+                 <button 
+                   className="pdf-btn-primary pdf-btn-sm" 
+                   onClick={() => playMove(cursorPos.row, cursorPos.col)}
+                   style={{ marginLeft: '16px' }}
+                 >
+                   착수 (Enter)
+                 </button>
+              )}
             </div>
-            <div className="pdf-font-mono pdf-text-label-14-mono pdf-text-muted">
-              Status: {!hasStarted ? 'WAITING' : winner ? 'GAME OVER' : 'ACTIVE'}
+            <div className="pdf-font-mono pdf-text-label-14-mono pdf-text-muted" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+              <div>Status: {!hasStarted ? 'WAITING' : winner ? 'GAME OVER' : 'ACTIVE'}</div>
+              <div style={{ 
+                height: isPracticeMode ? '20px' : '0px', 
+                opacity: isPracticeMode ? 1 : 0, 
+                overflow: 'hidden', 
+                transition: 'all 0.3s ease',
+                marginTop: isPracticeMode ? '4px' : '0'
+              }}>
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', gap: '6px' }}>
+                  <span className="pdf-text-label-14-mono" style={{ color: 'var(--color-text-primary)', fontSize: '12px' }}>AI 통계 패널 열기</span>
+                  <input 
+                    type="checkbox" 
+                    checked={showAiStats} 
+                    onChange={(e) => setShowAiStats(e.target.checked)} 
+                    style={{ cursor: 'pointer', width: '14px', height: '14px', accentColor: 'var(--color-functional-red)' }}
+                  />
+                </label>
+              </div>
             </div>
           </div>
 
-          <div className="pdf-flex-col pdf-items-center pdf-mt-400">
-              <div className="board-wrapper">
+          <div className="pdf-mt-400" style={{ width: '100%', overflowX: 'auto', paddingBottom: '16px', display: 'flex' }}>
+            <div style={{ flex: 1 }}></div>
+            <div className="pdf-flex-row" style={{ alignItems: 'flex-start', flexWrap: 'nowrap', flexShrink: 0 }}>
+              <div className="board-wrapper" style={{ flexShrink: 0, margin: (showAiStats && isPracticeMode) ? '0 16px' : '0', transition: 'margin 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
                 <div className="board">
                   {/* The outer grid border */}
                   <div className="board-lines-container"></div>
@@ -392,7 +423,6 @@ function App() {
                           className="cell"
                           onClick={() => {
                             setCursorPos({ row: rowIndex, col: colIndex });
-                            playMove(rowIndex, colIndex);
                           }}
                           onMouseEnter={() => setCursorPos({ row: rowIndex, col: colIndex })}
                         >
@@ -457,7 +487,111 @@ function App() {
                   )}
                 </div>
               </div>
+
+              {/* Pinned AI Stats Panel */}
+              <div style={{
+                width: (showAiStats && isPracticeMode) ? '340px' : '0px',
+                opacity: (showAiStats && isPracticeMode) ? 1 : 0,
+                margin: (showAiStats && isPracticeMode) ? '0 16px' : '0px',
+                overflow: 'hidden',
+                transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                flexShrink: 0
+              }}>
+                <div className="pdf-panel" style={{ width: '340px', minWidth: '340px', margin: 0, boxSizing: 'border-box' }}>
+                  <div className="pdf-flex-row pdf-items-center pdf-justify-between pdf-mb-200">
+                    <div className="pdf-text-heading-20">AI 연산 정보</div>
+                  </div>
+                  {latestAiStats ? (
+                    <div className="pdf-flex-col pdf-gap-100">
+                      <div className="pdf-flex-row pdf-justify-between">
+                        <span className="pdf-text-label-14-mono pdf-text-muted">탐색 노드</span>
+                        <span className="pdf-text-label-14-mono pdf-font-bold">{latestAiStats.nodesEvaluated.toLocaleString()}</span>
+                      </div>
+                      <div className="pdf-flex-row pdf-justify-between">
+                        <span className="pdf-text-label-14-mono pdf-text-muted">소요 시간</span>
+                        <span className="pdf-text-label-14-mono pdf-font-bold">{latestAiStats.timeTakenMs.toFixed(0)} ms</span>
+                      </div>
+                      <div className="pdf-flex-row pdf-justify-between">
+                        <span className="pdf-text-label-14-mono pdf-text-muted">탐색 깊이</span>
+                        <span className="pdf-text-label-14-mono pdf-font-bold">{latestAiStats.searchDepth}</span>
+                      </div>
+                      
+                      <div className="pdf-mt-200">
+                        <div className="pdf-text-label-14-mono pdf-mb-050">현재 성향: {latestAiStats.playStyle > 0.6 ? '공격적' : latestAiStats.playStyle < 0.4 ? '방어적' : '균형'} ({(latestAiStats.playStyle * 100).toFixed(0)}%)</div>
+                        <div style={{ height: '8px', width: '100%', backgroundColor: 'var(--color-bg-secondary)', borderRadius: '4px', overflow: 'hidden', display: 'flex' }}>
+                           <div style={{ height: '100%', backgroundColor: 'var(--color-functional-red)', width: `${latestAiStats.playStyle * 100}%`, transition: 'width 0.3s' }}></div>
+                           <div style={{ height: '100%', backgroundColor: 'var(--color-functional-blue)', flex: 1, transition: 'flex 0.3s' }}></div>
+                        </div>
+                        <div className="pdf-flex-row pdf-justify-between pdf-text-muted pdf-mt-050" style={{ fontSize: '10px' }}>
+                          <span>방어성</span>
+                          <span>공격성</span>
+                        </div>
+                      </div>
+
+                      <div className="pdf-mt-200">
+                        <div className="pdf-text-label-14-mono pdf-mb-050">형세(Advantage) 흐름</div>
+                        <div style={{ width: '100%', height: '110px', border: '1px solid var(--color-border-default)', borderRadius: '4px', position: 'relative', backgroundColor: 'var(--color-bg-secondary)', overflow: 'hidden' }}>
+                          <svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 300 100">
+                            <defs>
+                              <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="100" gradientUnits="userSpaceOnUse">
+                                <stop offset="0%" stopColor="var(--color-functional-red)" stopOpacity="0.4" />
+                                <stop offset="50%" stopColor="var(--color-functional-red)" stopOpacity="0.0" />
+                                <stop offset="50%" stopColor="var(--color-functional-blue)" stopOpacity="0.0" />
+                                <stop offset="100%" stopColor="var(--color-functional-blue)" stopOpacity="0.4" />
+                              </linearGradient>
+                              <linearGradient id="lineGradient" x1="0" y1="0" x2="0" y2="100" gradientUnits="userSpaceOnUse">
+                                <stop offset="0%" stopColor="var(--color-functional-red)" />
+                                <stop offset="50%" stopColor="var(--color-functional-red)" />
+                                <stop offset="50%" stopColor="var(--color-functional-blue)" />
+                                <stop offset="100%" stopColor="var(--color-functional-blue)" />
+                              </linearGradient>
+                            </defs>
+                            <line x1="0" y1="50" x2="300" y2="50" stroke="var(--color-border-default)" strokeWidth="1.5" />
+                            <line x1="0" y1="25" x2="300" y2="25" stroke="var(--color-border-default)" strokeWidth="1" strokeDasharray="2 4" opacity="0.5" />
+                            <line x1="0" y1="75" x2="300" y2="75" stroke="var(--color-border-default)" strokeWidth="1" strokeDasharray="2 4" opacity="0.5" />
+                            
+                            {aiStatsHistory.length > 0 && (() => {
+                              const pts = aiStatsHistory.map((s, i) => {
+                                const maxS = 200000;
+                                const clamped = Math.max(-maxS, Math.min(maxS, s.evalScore));
+                                const x = aiStatsHistory.length <= 1 ? 150 : (i / (aiStatsHistory.length - 1)) * 300;
+                                const y = 50 - (clamped / maxS) * 45;
+                                return {x, y};
+                              });
+                              const linePath = `M ${pts.map(p => `${p.x},${p.y}`).join(' L ')}`;
+                              const firstX = pts[0].x;
+                              const lastX = pts[pts.length - 1].x;
+                              const areaPath = `${linePath} L ${lastX},50 L ${firstX},50 Z`;
+
+                              return (
+                                <>
+                                  <path d={areaPath} fill="url(#areaGradient)" />
+                                  <path 
+                                    d={linePath} 
+                                    fill="none" 
+                                    stroke="url(#lineGradient)" 
+                                    strokeWidth="2" 
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                  <circle cx={lastX} cy={pts[pts.length - 1].y} r="3" fill="var(--color-bg-primary)" stroke="url(#lineGradient)" strokeWidth="2" />
+                                </>
+                              );
+                            })()}
+                          </svg>
+                          <div style={{ position: 'absolute', top: '4px', left: '6px', fontSize: '10px', color: 'var(--color-functional-red)', fontWeight: 'bold' }}>AI 유리</div>
+                          <div style={{ position: 'absolute', bottom: '4px', left: '6px', fontSize: '10px', color: 'var(--color-functional-blue)', fontWeight: 'bold' }}>Player 유리</div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                     <div className="pdf-text-label-14-mono pdf-text-muted pdf-p-200 pdf-text-center">데이터 수집 대기 중...</div>
+                  )}
+                </div>
+              </div>
             </div>
+            <div style={{ flex: 1 }}></div>
+          </div>
           </div>
       </main>
       {/* Leaderboard Modal */}
@@ -494,6 +628,8 @@ function App() {
           </div>
         </div>
       )}
+
+
     </div>
   );
 }

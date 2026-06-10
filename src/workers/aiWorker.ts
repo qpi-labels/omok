@@ -27,7 +27,8 @@ const DIRECTIONS = [
 
 let globalStartTime = 0;
 let timeLimitMs = 3800; // Total 4s limit max
-let currentPlayStyle: 'aggressive' | 'conservative' | 'normal' = 'normal';
+let currentPlayStyle: number = 0.5; // 0.0 (conservative) to 1.0 (aggressive)
+let nodesEvaluated = 0;
 
 function isTimeUp() {
   return performance.now() - globalStartTime > timeLimitMs;
@@ -35,6 +36,7 @@ function isTimeUp() {
 
 // Full board evaluation
 function evaluateBoardState(board: BoardState, aiPlayer: 'black'|'white', humanPlayer: 'black'|'white'): { aiWin: boolean, humanWin: boolean, score: number } {
+  nodesEvaluated++;
   let aiScore = 0;
   let humanScore = 0;
   let aiWin = false;
@@ -95,21 +97,19 @@ function evaluateBoardState(board: BoardState, aiPlayer: 'black'|'white', humanP
     }
   }
 
-  let aiMult = 1.1;
-  let humanMult = 1.0;
-  if (currentPlayStyle === 'aggressive') {
-    aiMult = 1.5;
-    humanMult = 0.8;
-  } else if (currentPlayStyle === 'conservative') {
-    aiMult = 0.8;
-    humanMult = 1.5;
-  }
+  // Map aggressiveness (0.0 to 1.0) to multipliers
+  // 0.5 -> aiMult = 1.0, humanMult = 1.0
+  // 1.0 -> aiMult = 1.5, humanMult = 0.8
+  // 0.0 -> aiMult = 0.8, humanMult = 1.5
+  let aiMult = 0.8 + currentPlayStyle * 0.7;
+  let humanMult = 1.5 - currentPlayStyle * 0.7;
 
   return { aiWin, humanWin, score: aiScore * aiMult - humanScore * humanMult };
 }
 
 // Improved Evaluate Move for fast sorting
 function evaluateMoveFast(board: BoardState, r: number, c: number, player: 'black'|'white', opponent: 'black'|'white'): { score: number, isWin: boolean } {
+  nodesEvaluated++;
   const centerDist = Math.max(Math.abs(r - 7), Math.abs(c - 7));
   let score = (7 - centerDist) * 10;
   let isWin = false;
@@ -204,15 +204,8 @@ function getCandidateMoves(board: BoardState, aiPlayer: 'black'|'white', humanPl
         const humanEval = evaluateMoveFast(board, r, c, humanPlayer, aiPlayer);
         board[r][c] = null;
         
-        let aiMult = 1.0;
-        let humanMult = 1.0;
-        if (currentPlayStyle === 'aggressive') {
-          aiMult = 1.5;
-          humanMult = 0.8;
-        } else if (currentPlayStyle === 'conservative') {
-          aiMult = 0.8;
-          humanMult = 1.5;
-        }
+        let aiMult = 0.8 + currentPlayStyle * 0.7;
+        let humanMult = 1.5 - currentPlayStyle * 0.7;
         
         let moveScore = aiEval.score * aiMult + humanEval.score * humanMult; 
         
@@ -334,7 +327,8 @@ function findVCF(board: BoardState, attacker: 'black'|'white', defender: 'black'
 self.onmessage = (e: MessageEvent) => {
   const { board, aiPlayer, difficulty, humanColor, playStyle } = e.data;
   globalStartTime = performance.now();
-  currentPlayStyle = playStyle || 'normal';
+  currentPlayStyle = typeof playStyle === 'number' ? playStyle : 0.5;
+  nodesEvaluated = 0;
   
   // 4s constraint
   timeLimitMs = 3800; 
@@ -347,7 +341,11 @@ self.onmessage = (e: MessageEvent) => {
     const vcfDepth = difficulty === 'god' ? 15 : 11;
     const vcfMove = findVCF(board, aiPlayer, humanPlayer, vcfDepth, true);
     if (vcfMove && !isTimeUp()) {
-      self.postMessage({ bestMove: vcfMove, isVCF: true });
+      self.postMessage({ 
+        bestMove: vcfMove, 
+        isVCF: true,
+        stats: { nodesEvaluated, searchDepth: vcfDepth, timeTakenMs: performance.now() - globalStartTime, evalScore: 99999999, playStyle: currentPlayStyle }
+      });
       return;
     }
   }
@@ -355,12 +353,18 @@ self.onmessage = (e: MessageEvent) => {
   // 2. Normal Minimax
   const moves = getCandidateMoves(board, aiPlayer, humanPlayer);
   if (moves.length === 0) {
-    self.postMessage({ bestMove: { row: 7, col: 7 } });
+    self.postMessage({ 
+      bestMove: { row: 7, col: 7 },
+      stats: { nodesEvaluated, searchDepth: 0, timeTakenMs: performance.now() - globalStartTime, evalScore: 0, playStyle: currentPlayStyle }
+    });
     return;
   }
 
   if (moves[0].score >= 200000000) {
-    self.postMessage({ bestMove: { row: moves[0].row, col: moves[0].col } });
+    self.postMessage({ 
+      bestMove: { row: moves[0].row, col: moves[0].col },
+      stats: { nodesEvaluated, searchDepth: 1, timeTakenMs: performance.now() - globalStartTime, evalScore: moves[0].score, playStyle: currentPlayStyle }
+    });
     return;
   }
 
@@ -407,5 +411,15 @@ self.onmessage = (e: MessageEvent) => {
     if (isTimeUp()) break;
   }
 
-  self.postMessage({ bestMove: { row: overallBestMove.row, col: overallBestMove.col }, isVCF: false });
+  self.postMessage({ 
+    bestMove: { row: overallBestMove.row, col: overallBestMove.col }, 
+    isVCF: false,
+    stats: { 
+      nodesEvaluated, 
+      searchDepth: maxSearchDepth, 
+      timeTakenMs: performance.now() - globalStartTime, 
+      evalScore: overallBestMove.score,
+      playStyle: currentPlayStyle 
+    }
+  });
 };
