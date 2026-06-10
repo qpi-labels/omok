@@ -411,7 +411,7 @@ self.onmessage = (e: MessageEvent) => {
   
   let maxSearchDepth = depthMap[difficulty as Difficulty] || 4;
   let rootBranchLimit = 10;
-  let branchLimitFn = (d: number, tactical: boolean) => d >= 6 ? 10 : d >= 4 ? 8 : 6;
+  let branchLimitFn: (d: number, tactical: boolean) => number = (d, _tactical) => d >= 6 ? 10 : d >= 4 ? 8 : 6;
 
   if (difficulty === 'expert' || difficulty === 'god') {
     const isTactical = moves.length > 0 && moves[0].score > 40000;
@@ -419,12 +419,12 @@ self.onmessage = (e: MessageEvent) => {
       // Tactical Situation: Narrow & Deep
       maxSearchDepth = difficulty === 'god' ? 12 : 8;
       rootBranchLimit = difficulty === 'god' ? 8 : 6;
-      branchLimitFn = (d: number, tactical: boolean) => tactical ? 6 : 4;
+      branchLimitFn = (_d, tactical) => tactical ? 6 : 4;
     } else {
       // Strategic Situation: Wide & Shallow
       maxSearchDepth = difficulty === 'god' ? 8 : 6;
       rootBranchLimit = difficulty === 'god' ? 16 : 12; // Adjusted down for 4.5s
-      branchLimitFn = (d: number, tactical: boolean) => tactical ? 8 : (d >= 6 ? 10 : d >= 4 ? 8 : 6);
+      branchLimitFn = (d, tactical) => tactical ? 8 : (d >= 6 ? 10 : d >= 4 ? 8 : 6);
     }
   } else {
     rootBranchLimit = maxSearchDepth >= 6 ? 12 : maxSearchDepth >= 4 ? 10 : 8;
