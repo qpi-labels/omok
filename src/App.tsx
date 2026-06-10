@@ -11,7 +11,7 @@ function App() {
   });
   const [govatarOpponent, setGovatarOpponent] = useState<{ uid: string; name: string; playStyle: number; difficulty: Difficulty } | null>(null);
   const { profile, loginWithGoogle, logout, updateGameResult, updateNickname, startGovatarTraining, cancelGovatarTraining, rankBadge, isLoading } = useFirebase();
-  const { board, currentPlayer, winner, showOverlay, winningLine, lastMove, isAiThinking, humanColor, isColorDeciding, decidedColor, difficulty, setDifficulty, playMove, resetGame, hasStarted, aiStatsHistory, latestAiStats } = useOmok((isWin, diff, turnsPlayed) => {
+  const { board, currentPlayer, winner, showOverlay, winningLine, lastMove, isAiThinking, humanColor, isColorDeciding, decidedColor, difficulty, setDifficulty, playMove, resetGame, hasStarted, aiStatsHistory, latestAiStats, tutorialMode, setTutorialMode, tutorialDifficulty, setTutorialDifficulty, tutorialHint, isCalculatingHint, requestHint } = useOmok((isWin, diff, turnsPlayed) => {
     if (!isPracticeMode || profile?.govatarTrainingMode) {
       updateGameResult(diff, isWin, turnsPlayed, govatarOpponent);
     }
@@ -22,6 +22,7 @@ function App() {
   const [showDiffInfo, setShowDiffInfo] = useState(false);
   const [showRankInfo, setShowRankInfo] = useState(false);
   const [showGameInfo, setShowGameInfo] = useState(false);
+  const [pendingGovatarChallenge, setPendingGovatarChallenge] = useState<{uid: string, name: string, playStyle: number, difficulty: Difficulty} | null>(null);
 
   // Force practice mode off if in training mode
   useEffect(() => {
@@ -234,65 +235,6 @@ function App() {
             )}
           </div>
           
-          {profile && (
-            <>
-              <div className="pdf-nav-group-header">GOVATAR</div>
-              <div className="pdf-mt-100 pdf-mb-400">
-                {profile.govatarTrainingMode ? (
-                  <div className="pdf-panel pdf-flex-col pdf-p-150 pdf-gap-100" style={{ margin: 0, border: '1px solid var(--color-functional-red)' }}>
-                    <div className="pdf-text-label-14-mono pdf-text-red pdf-font-bold pdf-text-center">
-                      평가 진행 중... ({profile.govatarGamesPlayed || 0}/5판)
-                    </div>
-                    <div className="pdf-text-label-14-mono pdf-text-muted pdf-text-center" style={{ fontSize: '11px', lineHeight: '1.4' }}>
-                      무작위 난이도와 5연전을 치러 나만의 고바타를 완성하세요.
-                    </div>
-                    <button className="pdf-secondary-btn pdf-w-full pdf-justify-center" onClick={() => {
-                      if (window.confirm('평가를 취소하면 진행도가 모두 초기화됩니다. 취소하시겠습니까?')) {
-                        cancelGovatarTraining();
-                        setGovatarOpponent(null);
-                        resetGame();
-                      }
-                    }}>
-                      평가 취소하기
-                    </button>
-                  </div>
-                ) : (
-                  <div className="pdf-panel pdf-flex-col pdf-p-150 pdf-gap-100" style={{ margin: 0 }}>
-                    {profile.govatarDifficulty ? (
-                      <>
-                        <div className="pdf-flex-row pdf-items-center pdf-justify-between">
-                          <div className="pdf-text-label-14-mono pdf-text-primary">내 고바타</div>
-                          <div className="pdf-text-label-14-mono pdf-font-bold" style={{ color: 'var(--color-functional-blue)' }}>{profile.govatarDifficulty}</div>
-                        </div>
-                        <button className="pdf-btn-primary pdf-w-full pdf-justify-center" onClick={() => {
-                          if (window.confirm('기존 데이터를 지우고 다시 5연전 평가를 시작하시겠습니까?')) {
-                            startGovatarTraining();
-                            setGovatarOpponent(null);
-                            handleNewGame(); // triggers random silent difficulty and reset
-                          }
-                        }}>
-                          재평가하기
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <div className="pdf-text-label-14-mono pdf-text-muted pdf-text-center" style={{ fontSize: '11px', lineHeight: '1.4' }}>
-                          나의 실력과 플레이 성향을 가진 고바타를 생성하세요.
-                        </div>
-                        <button className="pdf-btn-primary pdf-w-full pdf-justify-center" onClick={() => {
-                          startGovatarTraining();
-                          setGovatarOpponent(null);
-                          handleNewGame(); // triggers random silent difficulty and reset
-                        }}>
-                          Govatar 평가 시작 (5연전)
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-            </>
-          )}
 
           <div className="pdf-nav-group-header">CONTROLS</div>
           <div className="pdf-mt-100">
@@ -377,13 +319,15 @@ function App() {
             )}
           </div>
           <div className="pdf-mt-100">
-            <div className="pdf-flex-row" style={{ display: 'inline-flex', backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-default)', borderRadius: '10px', padding: '4px', gap: '4px', width: '100%', overflowX: 'auto', opacity: profile?.govatarTrainingMode ? 0.5 : 1, pointerEvents: profile?.govatarTrainingMode ? 'none' : 'auto' }}>
+            <div className="pdf-flex-row" style={{ display: 'inline-flex', backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-default)', borderRadius: '10px', padding: '4px', gap: '4px', width: '100%', overflowX: 'auto', opacity: profile?.govatarTrainingMode || tutorialMode ? 0.6 : 1, pointerEvents: profile?.govatarTrainingMode || tutorialMode ? 'none' : 'auto' }}>
               {profile?.govatarTrainingMode ? (
                 <div className="pdf-text-label-14-mono pdf-w-full pdf-text-center pdf-text-muted" style={{ padding: '6px 4px', fontSize: '12px' }}>
                   평가 중에는 난이도를 볼 수 없습니다.
                 </div>
               ) : (
-                (['easy', 'normal', 'hard', 'expert', 'god'] as const).map((level) => (
+                (['easy', 'normal', 'hard', 'expert', 'god'] as const).map((level) => {
+                  const isSelected = tutorialMode ? tutorialDifficulty === level : difficulty === level;
+                  return (
                   <button
                     key={level}
                     onClick={() => setDifficulty(level)}
@@ -391,9 +335,9 @@ function App() {
                       flex: 1,
                       padding: '6px 4px',
                       borderRadius: '6px',
-                      backgroundColor: difficulty === level ? 'var(--color-bg-primary)' : 'transparent',
-                      color: difficulty === level ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-                      boxShadow: difficulty === level ? 'var(--shadow-hardware-bevel)' : 'none',
+                      backgroundColor: isSelected ? 'var(--color-bg-primary)' : 'transparent',
+                      color: isSelected ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+                      boxShadow: isSelected ? 'var(--shadow-hardware-bevel)' : 'none',
                       transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                       display: 'flex',
                       alignItems: 'center',
@@ -401,13 +345,18 @@ function App() {
                       whiteSpace: 'nowrap'
                     }}
                   >
-                    <span className="pdf-text-label-14-mono" style={{ fontSize: '12px', fontWeight: difficulty === level ? '700' : '400' }}>
+                    <span className="pdf-text-label-14-mono" style={{ fontSize: '12px', fontWeight: isSelected ? '700' : '400' }}>
                       {level === 'easy' ? '하수' : level === 'normal' ? '중수' : level === 'hard' ? '고수' : level === 'expert' ? '초고수' : '신'}
                     </span>
                   </button>
-                ))
+                )})
               )}
             </div>
+            {tutorialMode && (
+              <div className="pdf-text-label-14-mono pdf-text-muted pdf-mt-050" style={{ fontSize: '10px', textAlign: 'right' }}>
+                튜토리얼 모드에서는 난이도가 고정됩니다
+              </div>
+            )}
           </div>
 
           <div className="pdf-nav-group-header" style={{ position: 'relative', justifyContent: 'flex-start', gap: '6px' }}>
@@ -500,7 +449,8 @@ function App() {
             <div style={{ display: 'flex', width: 'max-content', minWidth: '100%', padding: '0 24px', boxSizing: 'border-box' }}>
               <div style={{ flex: '1 1 0%' }}></div>
               <div className="pdf-flex-row" style={{ flexShrink: 0, alignItems: 'flex-start', flexWrap: 'nowrap', gap: (showAiStats && isPracticeMode) ? '16px' : '0px', transition: 'gap 0.5s cubic-bezier(0.16, 1, 0.3, 1)' }}>
-                <div className="board-wrapper" style={{ flexShrink: 0, margin: '0', transition: 'margin 0.5s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+                  <div className="board-wrapper" style={{ margin: '0', transition: 'margin 0.5s cubic-bezier(0.16, 1, 0.3, 1)' }}>
                   <div className="board" onMouseLeave={() => setHoverPos(null)}>
                     {/* The outer grid border */}
                     <div className="board-lines-container"></div>
@@ -586,50 +536,112 @@ function App() {
                     />
                   )}
 
+                  {/* Tutorial Hint Cursor */}
+                  {tutorialMode && tutorialHint && (
+                    <div 
+                      style={{
+                        position: 'absolute',
+                        width: 'var(--cell-size)',
+                        height: 'var(--cell-size)',
+                        top: `calc(var(--cell-size) * ${tutorialHint.row} + var(--board-padding))`,
+                        left: `calc(var(--cell-size) * ${tutorialHint.col} + var(--board-padding))`,
+                        transform: 'translate(-50%, -50%)',
+                        border: '2px solid rgba(128, 128, 128, 0.5)',
+                        borderRadius: '4px',
+                        zIndex: 5,
+                        pointerEvents: 'none'
+                      }}
+                    />
+                  )}
+
                   {isColorDeciding && (
-                    <div className="color-decider-overlay">
-                      <div className={`coin-container ${decidedColor ? 'decided' : ''}`}>
-                        <div className={`coin ${decidedColor || ''}`}>
-                          <div className="coin-face front black"></div>
-                          <div className="coin-face back white"></div>
+                    <div className="pdf-absolute pdf-inset-0 pdf-flex-col pdf-items-center pdf-justify-center pdf-modal-overlay" style={{ zIndex: 10 }}>
+                      <div className="pdf-animate-fade-in pdf-radius-lg pdf-modal-container pdf-flex-col pdf-items-center pdf-justify-center" style={{ width: 'auto', padding: 'var(--space-400)', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
+                        <div className="pdf-text-heading-24 pdf-mb-200" style={{ color: 'var(--color-text-primary)' }}>색상 결정 중...</div>
+                        <div className={`coin-container ${decidedColor ? 'decided' : ''}`}>
+                          <div className={`coin ${decidedColor || ''}`}>
+                            <div className="coin-face front black"></div>
+                            <div className="coin-face back white"></div>
+                          </div>
                         </div>
-                      </div>
-                      <div className="pdf-text-heading-24" style={{ color: 'var(--color-text-primary)' }}>
-                        {decidedColor 
-                          ? (decidedColor === 'black' ? '흑돌 당첨! (선공)' : '백돌 당첨! (후공)')
-                          : '돌 색상을 섞는 중...'}
+                        <div className="pdf-text-label-16 pdf-mt-200" style={{ color: 'var(--color-text-primary)' }}>
+                          {decidedColor 
+                            ? (decidedColor === 'black' ? '흑돌 당첨! (선공)' : '백돌 당첨! (후공)')
+                            : '돌 색상을 섞는 중...'}
+                        </div>
                       </div>
                     </div>
                   )}
 
                   {showOverlay && winner && (
-                    <div className="winner-overlay">
-                      <div className="pdf-text-heading-32 pdf-mb-200" style={{ color: 'var(--color-text-primary)' }}>
-                        {winner === humanColor ? 'YOU WIN!' : winner === 'draw' ? 'DRAW!' : (govatarOpponent ? `${govatarOpponent.name} WINS!` : 'COMPUTER WINS!')}
+                    <div className="pdf-absolute pdf-inset-0 pdf-flex-col pdf-items-center pdf-justify-center pdf-modal-overlay" style={{ zIndex: 10 }}>
+                      <div className="pdf-animate-fade-in pdf-radius-lg pdf-modal-container pdf-flex-col pdf-items-center pdf-justify-center" style={{ width: 'auto', padding: 'var(--space-400)', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
+                        <div className="pdf-text-heading-32 pdf-mb-300" style={{ color: 'var(--color-text-primary)', textAlign: 'center' }}>
+                          {winner === humanColor ? 'YOU WIN!' : winner === 'draw' ? 'DRAW!' : (govatarOpponent ? `${govatarOpponent.name} WINS!` : 'COMPUTER WINS!')}
+                        </div>
+                        <button className="pdf-btn-primary" onClick={() => {
+                          if (profile?.govatarTrainingMode) {
+                            handleNewGame();
+                          } else {
+                            resetGame();
+                          }
+                        }}>
+                          {profile?.govatarTrainingMode ? '다음 평가 진행' : 'RESTART SYSTEM'}
+                        </button>
                       </div>
-                      <button className="pdf-btn-primary" onClick={() => {
-                        if (profile?.govatarTrainingMode) {
-                          handleNewGame();
-                        } else {
-                          resetGame();
-                        }
-                      }}>
-                        {profile?.govatarTrainingMode ? '다음 평가 진행' : 'RESTART SYSTEM'}
-                      </button>
                     </div>
                   )}
 
                   {!hasStarted && (
-                    <div className="color-decider-overlay" style={{ background: 'rgba(255,255,255,0.4)', backdropFilter: 'blur(4px)' }}>
-                      <div className="pdf-text-heading-24" style={{ color: 'var(--color-text-primary)' }}>
-                        대기 중
+                    <div className="pdf-absolute pdf-inset-0 pdf-flex-col pdf-items-center pdf-justify-center pdf-modal-overlay" style={{ zIndex: 10, backdropFilter: 'blur(4px)' }}>
+                      <div className="pdf-animate-fade-in pdf-radius-lg pdf-modal-container pdf-flex-col pdf-items-center pdf-justify-center" style={{ width: 'auto', padding: 'var(--space-300)', backgroundColor: 'var(--color-bg-primary)', boxShadow: '0 20px 40px rgba(0,0,0,0.3)' }}>
+                        <div className="pdf-text-heading-24" style={{ color: 'var(--color-text-primary)' }}>
+                          대기 중
+                        </div>
                       </div>
                     </div>
                   )}
                 </div>
               </div>
+              {tutorialMode && hasStarted && !winner && (
+                <div className="pdf-panel pdf-mt-200 pdf-flex-col pdf-gap-100" style={{ margin: '16px 0 0 0', backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-default)' }}>
+                  <div className="pdf-flex-row pdf-items-center pdf-justify-between">
+                    <div className="pdf-text-label-14-mono pdf-font-bold" style={{ color: 'var(--color-text-primary)' }}>💡 튜토리얼 힌트</div>
+                    <div className="pdf-flex-row pdf-gap-100">
+                      <button 
+                        className="pdf-secondary-btn" 
+                        onClick={() => {
+                          setTutorialMode(false);
+                          setTimeout(resetGame, 100);
+                        }}
+                        style={{ padding: '4px 12px', fontSize: '12px', height: '28px' }}
+                      >
+                        종료
+                      </button>
+                      <button 
+                        className="pdf-btn-primary" 
+                        onClick={requestHint}
+                        disabled={isCalculatingHint || currentPlayer !== humanColor}
+                        style={{ padding: '4px 12px', fontSize: '12px', height: '28px' }}
+                      >
+                        {isCalculatingHint ? '계산 중...' : '힌트 받기'}
+                      </button>
+                    </div>
+                  </div>
+                  {tutorialHint ? (
+                    <div className="pdf-text-label-14-mono pdf-text-primary" style={{ marginTop: '8px', padding: '12px', backgroundColor: 'var(--color-bg-primary)', borderRadius: '4px', borderLeft: '3px solid var(--color-functional-blue)' }}>
+                      {tutorialHint.reason}
+                    </div>
+                  ) : (
+                    <div className="pdf-text-label-14-mono pdf-text-muted" style={{ marginTop: '8px', padding: '12px', fontSize: '12px' }}>
+                      우측 상단의 '힌트 받기' 버튼을 눌러보세요.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
-              {/* Pinned AI Stats Panel */}
+            {/* Pinned AI Stats Panel */}
               <div style={{
                 flex: (showAiStats && isPracticeMode) ? '0 0 250px' : '0 0 0px',
                 maxWidth: '250px',
@@ -712,7 +724,7 @@ function App() {
                                   <path 
                                     d={linePath} 
                                     fill="none" 
-                                    stroke="url(#lineGradient)" 
+                        stroke="url(#lineGradient)" 
                                     strokeWidth="2" 
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
@@ -740,11 +752,11 @@ function App() {
     </main>
       {/* Leaderboard Modal */}
       {showLeaderboard && (
-        <div className="overlay" style={{ zIndex: 100 }} onClick={() => setShowLeaderboard(false)}>
-          <div className="pdf-panel pdf-p-400" style={{ width: '400px', maxWidth: '90vw', maxHeight: '80vh', overflowY: 'auto', margin: 0 }} onClick={e => e.stopPropagation()}>
-            <div className="pdf-flex-row pdf-mb-300 pdf-items-center pdf-justify-between">
-              <div className="pdf-text-heading-24">🏆 글로벌 랭킹 Top 100</div>
-              <button onClick={() => setShowLeaderboard(false)} className="pdf-text-muted" style={{ fontSize: '20px' }}>×</button>
+        <div className="pdf-fixed pdf-inset-0 pdf-flex-row pdf-items-center pdf-justify-center pdf-modal-overlay" onClick={() => setShowLeaderboard(false)}>
+          <div className="pdf-animate-fade-in pdf-radius-lg pdf-modal-container" style={{ width: '400px', maxHeight: '80vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+            <div className="pdf-flex-row pdf-items-center pdf-justify-between pdf-panel-header">
+              <h2 className="pdf-text-heading-24">🏆 글로벌 랭킹 Top 100</h2>
+              <button className="pdf-secondary-btn pdf-btn-xs" onClick={() => setShowLeaderboard(false)}>닫기</button>
             </div>
             
             <div className="pdf-flex-col pdf-gap-150">
@@ -764,11 +776,12 @@ function App() {
                         {entry.govatarPlayStyle !== undefined && entry.govatarDifficulty && (
                           <button 
                             onClick={() => {
-                              if (window.confirm(`${entry.displayName}님의 Govatar(${entry.govatarDifficulty})와 대결하시겠습니까?`)) {
-                                setGovatarOpponent({ uid: entry.uid, name: entry.displayName, playStyle: entry.govatarPlayStyle as number, difficulty: entry.govatarDifficulty as Difficulty });
-                                setShowLeaderboard(false);
-                                setTimeout(resetGame, 100);
-                              }
+                              setPendingGovatarChallenge({ 
+                                uid: entry.uid, 
+                                name: entry.displayName, 
+                                playStyle: entry.govatarPlayStyle as number, 
+                                difficulty: entry.govatarDifficulty as Difficulty 
+                              });
                             }}
                             title={`Govatar (${entry.govatarDifficulty}) - 클릭하여 대결`}
                             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', opacity: 0.8 }}
@@ -798,13 +811,34 @@ function App() {
         </div>
       )}
 
+      {/* Govatar Challenge Modal */}
+      {pendingGovatarChallenge && (
+        <div className="pdf-fixed pdf-inset-0 pdf-flex-row pdf-items-center pdf-justify-center pdf-modal-overlay" style={{ zIndex: 10000 }} onClick={() => setPendingGovatarChallenge(null)}>
+          <div className="pdf-animate-fade-in pdf-radius-lg pdf-modal-container pdf-flex-col pdf-gap-200" style={{ width: '350px' }} onClick={e => e.stopPropagation()}>
+            <div className="pdf-text-heading-24 pdf-text-center">Govatar 대결</div>
+            <div className="pdf-text-label-14-mono pdf-text-center pdf-text-muted pdf-mt-100">
+              <span style={{ color: 'var(--color-text-primary)', fontWeight: 'bold' }}>{pendingGovatarChallenge.name}</span>님의 Govatar({pendingGovatarChallenge.difficulty})와<br />대결하시겠습니까?
+            </div>
+            <div className="pdf-flex-row pdf-gap-100 pdf-justify-center pdf-mt-200">
+              <button className="pdf-secondary-btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setPendingGovatarChallenge(null)}>취소</button>
+              <button className="pdf-btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => {
+                setGovatarOpponent(pendingGovatarChallenge);
+                setShowLeaderboard(false);
+                setPendingGovatarChallenge(null);
+                setTimeout(resetGame, 100);
+              }}>대결 시작</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Profile Settings Modal */}
       {showProfileModal && profile && (
-        <div className="overlay" style={{ zIndex: 100 }} onClick={() => setShowProfileModal(false)}>
-          <div className="pdf-panel pdf-p-400" style={{ width: '350px', maxWidth: '90vw', margin: 0 }} onClick={e => e.stopPropagation()}>
-            <div className="pdf-flex-row pdf-mb-300 pdf-items-center pdf-justify-between">
-              <div className="pdf-text-heading-20">프로필 설정</div>
-              <button onClick={() => setShowProfileModal(false)} className="pdf-text-muted" style={{ fontSize: '20px', cursor: 'pointer', background: 'none', border: 'none' }}>×</button>
+        <div className="pdf-fixed pdf-inset-0 pdf-flex-row pdf-items-center pdf-justify-center pdf-modal-overlay" onClick={() => setShowProfileModal(false)}>
+          <div className="pdf-animate-fade-in pdf-radius-lg pdf-modal-container" style={{ width: '350px' }} onClick={e => e.stopPropagation()}>
+            <div className="pdf-flex-row pdf-items-center pdf-justify-between pdf-panel-header">
+              <h2 className="pdf-text-heading-24">프로필 설정</h2>
+              <button className="pdf-secondary-btn pdf-btn-xs" onClick={() => setShowProfileModal(false)}>닫기</button>
             </div>
             
             <div className="pdf-flex-col pdf-gap-200">
@@ -818,7 +852,7 @@ function App() {
                     className="pdf-text-label-14-mono"
                     style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid var(--color-border-default)', backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text-primary)', outline: 'none' }}
                   />
-                  <button className="pdf-btn-primary" onClick={() => {
+                  <button className="pdf-btn-primary" style={{ whiteSpace: 'nowrap', flexShrink: 0 }} onClick={() => {
                     const input = document.getElementById('nicknameInput') as HTMLInputElement;
                     if (input.value && input.value.trim() !== '' && input.value !== profile.displayName) {
                       updateNickname(input.value.trim());
@@ -836,6 +870,100 @@ function App() {
                   <span>{profile.wins}승 {profile.losses}패</span>
                   <span>{rankBadge} ({profile.points} pts)</span>
                 </div>
+              </div>
+
+              <div style={{ height: '1px', backgroundColor: 'var(--color-border-default)' }} />
+
+              <div className="pdf-flex-col pdf-gap-100">
+                <div className="pdf-flex-row pdf-items-center pdf-justify-between">
+                  <div className="pdf-text-label-14-mono pdf-font-bold" style={{ color: 'var(--color-text-primary)' }}>튜토리얼 모드</div>
+                  {tutorialMode ? (
+                    <button className="pdf-secondary-btn pdf-btn-xs" onClick={() => {
+                      setTutorialMode(false);
+                      setShowProfileModal(false);
+                      setTimeout(resetGame, 100);
+                    }}>진행 중 (종료하기)</button>
+                  ) : (
+                    <button className="pdf-btn-primary pdf-btn-xs" onClick={() => {
+                      setTutorialMode(true);
+                      setShowProfileModal(false);
+                      setTimeout(resetGame, 100);
+                    }}>시작하기</button>
+                  )}
+                </div>
+                <div className="pdf-flex-row pdf-items-center pdf-justify-between" style={{ marginTop: '4px' }}>
+                  <div className="pdf-text-label-14-mono pdf-text-muted" style={{ fontSize: '12px' }}>AI 난이도 선택</div>
+                  <select 
+                    value={tutorialDifficulty} 
+                    onChange={(e) => setTutorialDifficulty(e.target.value as 'normal' | 'hard')}
+                    className="pdf-text-label-14-mono"
+                    style={{ padding: '2px 8px', borderRadius: '4px', backgroundColor: 'var(--color-bg-primary)', border: '1px solid var(--color-border-default)', color: 'var(--color-text-primary)', outline: 'none' }}
+                    disabled={tutorialMode}
+                  >
+                    <option value="normal">중수</option>
+                    <option value="hard">고수</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div style={{ height: '1px', backgroundColor: 'var(--color-border-default)' }} />
+              
+              <div className="pdf-flex-col pdf-gap-100">
+                <div className="pdf-text-label-14-mono pdf-font-bold" style={{ color: 'var(--color-text-primary)' }}>나의 Govatar</div>
+                {profile.govatarTrainingMode ? (
+                  <div className="pdf-panel pdf-flex-col pdf-p-150 pdf-gap-100" style={{ margin: 0, border: '1px solid var(--color-functional-red)' }}>
+                    <div className="pdf-text-label-14-mono pdf-text-red pdf-font-bold pdf-text-center">
+                      평가 진행 중... ({profile.govatarGamesPlayed || 0}/5판)
+                    </div>
+                    <div className="pdf-text-label-14-mono pdf-text-muted pdf-text-center" style={{ fontSize: '11px', lineHeight: '1.4' }}>
+                      무작위 난이도와 5연전을 치러 나만의 고바타를 완성하세요.
+                    </div>
+                    <button className="pdf-secondary-btn pdf-w-full pdf-justify-center" onClick={() => {
+                      if (window.confirm('평가를 취소하면 진행도가 모두 초기화됩니다. 취소하시겠습니까?')) {
+                        cancelGovatarTraining();
+                        setGovatarOpponent(null);
+                        resetGame();
+                      }
+                    }}>
+                      평가 취소하기
+                    </button>
+                  </div>
+                ) : (
+                  <div className="pdf-panel pdf-flex-col pdf-p-150 pdf-gap-100" style={{ margin: 0 }}>
+                    {profile.govatarDifficulty ? (
+                      <>
+                        <div className="pdf-flex-row pdf-items-center pdf-justify-between">
+                          <div className="pdf-text-label-14-mono pdf-text-primary">현재 난이도</div>
+                          <div className="pdf-text-label-14-mono pdf-font-bold" style={{ color: 'var(--color-functional-blue)' }}>{profile.govatarDifficulty}</div>
+                        </div>
+                        <button className="pdf-btn-primary pdf-w-full pdf-justify-center" onClick={() => {
+                          if (window.confirm('기존 데이터를 지우고 다시 5연전 평가를 시작하시겠습니까?')) {
+                            startGovatarTraining();
+                            setGovatarOpponent(null);
+                            handleNewGame(); // triggers random silent difficulty and reset
+                            setShowProfileModal(false);
+                          }
+                        }}>
+                          재평가하기
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <div className="pdf-text-label-14-mono pdf-text-muted pdf-text-center" style={{ fontSize: '11px', lineHeight: '1.4' }}>
+                          나의 실력과 플레이 성향을 가진 고바타를 생성하세요.
+                        </div>
+                        <button className="pdf-btn-primary pdf-w-full pdf-justify-center" onClick={() => {
+                          startGovatarTraining();
+                          setGovatarOpponent(null);
+                          handleNewGame(); // triggers random silent difficulty and reset
+                          setShowProfileModal(false);
+                        }}>
+                          Govatar 평가 시작 (5연전)
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div style={{ height: '1px', backgroundColor: 'var(--color-border-default)' }} />

@@ -33,20 +33,24 @@ let currentGlobalDepth = 0;
 let currentGlobalBestScore = 0;
 let lastPostTime = 0;
 
+let isHintMode = false;
+
 function reportProgress() {
   if ((nodesEvaluated & 8191) === 0) {
     const now = performance.now();
     if (now - lastPostTime > 60) {
-      self.postMessage({
-        type: 'progress',
-        stats: {
-          nodesEvaluated,
-          searchDepth: currentGlobalDepth,
-          timeTakenMs: now - globalStartTime,
-          evalScore: currentGlobalBestScore,
-          playStyle: currentPlayStyle
-        }
-      });
+      if (!isHintMode) {
+        self.postMessage({
+          type: 'progress',
+          stats: {
+            nodesEvaluated,
+            searchDepth: currentGlobalDepth,
+            timeTakenMs: now - globalStartTime,
+            evalScore: currentGlobalBestScore,
+            playStyle: currentPlayStyle
+          }
+        });
+      }
       lastPostTime = now;
     }
   }
@@ -352,25 +356,42 @@ function findVCF(board: BoardState, attacker: 'black'|'white', defender: 'black'
 }
 
 self.onmessage = (e: MessageEvent) => {
-  const { board, aiPlayer, difficulty, humanColor, playStyle } = e.data;
+  const { type, board, aiPlayer, difficulty, humanColor, playStyle } = e.data;
   globalStartTime = performance.now();
   lastPostTime = globalStartTime;
   currentPlayStyle = typeof playStyle === 'number' ? playStyle : 0.5;
   nodesEvaluated = 0;
   currentGlobalDepth = 1;
   currentGlobalBestScore = 0;
+  isHintMode = (type === 'hint');
   
   // 4.5s constraint
   timeLimitMs = 4300; 
   
-  const humanPlayer = humanColor;
+  let actualAiPlayer = aiPlayer;
+  let actualHumanPlayer = humanColor;
+  let actualDifficulty = difficulty;
+
+  if (isHintMode) {
+    actualAiPlayer = humanColor;
+    actualHumanPlayer = aiPlayer;
+    actualDifficulty = 'god';
+  }
   
   // 1. Check for immediate VCF
-  if (difficulty === 'expert' || difficulty === 'god') {
+  if (actualDifficulty === 'expert' || actualDifficulty === 'god') {
     // VCF max depth 11 for expert, 15 for god
-    const vcfDepth = difficulty === 'god' ? 15 : 11;
-    const vcfMove = findVCF(board, aiPlayer, humanPlayer, vcfDepth, true);
+    const vcfDepth = actualDifficulty === 'god' ? 15 : 11;
+    const vcfMove = findVCF(board, actualAiPlayer, actualHumanPlayer, vcfDepth, true);
     if (vcfMove && !isTimeUp()) {
+      if (isHintMode) {
+        self.postMessage({ 
+          type: 'hintResult', 
+          bestMove: vcfMove, 
+          reason: "이 곳에 두면 연속 공격으로 반드시 승리할 수 있습니다!" 
+        });
+        return;
+      }
       self.postMessage({ 
         type: 'result',
         bestMove: vcfMove, 
@@ -382,20 +403,36 @@ self.onmessage = (e: MessageEvent) => {
   }
 
   // 2. Normal Minimax
-  const moves = getCandidateMoves(board, aiPlayer, humanPlayer);
+  const moves = getCandidateMoves(board, actualAiPlayer, actualHumanPlayer);
   if (moves.length === 0) {
+    if (isHintMode) {
       self.postMessage({ 
-        type: 'result',
-        bestMove: { row: 7, col: 7 },
+        type: 'hintResult', 
+        bestMove: { row: 7, col: 7 }, 
+        reason: "첫 수이거나 둘 곳이 없습니다. 중앙을 추천합니다." 
+      });
+      return;
+    }
+    self.postMessage({ 
+      type: 'result',
+      bestMove: { row: 7, col: 7 },
       stats: { nodesEvaluated, searchDepth: 0, timeTakenMs: performance.now() - globalStartTime, evalScore: 0, playStyle: currentPlayStyle }
     });
     return;
   }
 
   if (moves[0].score >= 200000000) {
+    if (isHintMode) {
       self.postMessage({ 
-        type: 'result',
-        bestMove: { row: moves[0].row, col: moves[0].col },
+        type: 'hintResult', 
+        bestMove: { row: moves[0].row, col: moves[0].col }, 
+        reason: "상대방의 오목을 막거나 바로 승리할 수 있는 결정적인 자리입니다!" 
+      });
+      return;
+    }
+    self.postMessage({ 
+      type: 'result',
+      bestMove: { row: moves[0].row, col: moves[0].col },
       stats: { nodesEvaluated, searchDepth: 1, timeTakenMs: performance.now() - globalStartTime, evalScore: moves[0].score, playStyle: currentPlayStyle }
     });
     return;
@@ -409,21 +446,21 @@ self.onmessage = (e: MessageEvent) => {
     'god': 8
   };
   
-  let maxSearchDepth = depthMap[difficulty as Difficulty] || 4;
+  let maxSearchDepth = depthMap[actualDifficulty as Difficulty] || 4;
   let rootBranchLimit = 10;
   let branchLimitFn: (d: number, tactical: boolean) => number = (d, _tactical) => d >= 6 ? 10 : d >= 4 ? 8 : 6;
 
-  if (difficulty === 'expert' || difficulty === 'god') {
+  if (actualDifficulty === 'expert' || actualDifficulty === 'god') {
     const isTactical = moves.length > 0 && moves[0].score > 40000;
     if (isTactical) {
       // Tactical Situation: Narrow & Deep
-      maxSearchDepth = difficulty === 'god' ? 12 : 8;
-      rootBranchLimit = difficulty === 'god' ? 8 : 6;
+      maxSearchDepth = actualDifficulty === 'god' ? 12 : 8;
+      rootBranchLimit = actualDifficulty === 'god' ? 8 : 6;
       branchLimitFn = (_d, tactical) => tactical ? 6 : 4;
     } else {
       // Strategic Situation: Wide & Shallow
-      maxSearchDepth = difficulty === 'god' ? 8 : 6;
-      rootBranchLimit = difficulty === 'god' ? 16 : 12; // Adjusted down for 4.5s
+      maxSearchDepth = actualDifficulty === 'god' ? 8 : 6;
+      rootBranchLimit = actualDifficulty === 'god' ? 16 : 12; // Adjusted down for 4.5s
       branchLimitFn = (d, tactical) => tactical ? 8 : (d >= 6 ? 10 : d >= 4 ? 8 : 6);
     }
   } else {
@@ -433,7 +470,9 @@ self.onmessage = (e: MessageEvent) => {
   let overallBestMove = moves[0];
   let lastCompletedDepth = 1;
 
-  self.postMessage({ type: 'progress', stats: { nodesEvaluated: 0, searchDepth: 1, timeTakenMs: 0, evalScore: moves[0].score, playStyle: currentPlayStyle } });
+  if (!isHintMode) {
+    self.postMessage({ type: 'progress', stats: { nodesEvaluated: 0, searchDepth: 1, timeTakenMs: 0, evalScore: moves[0].score, playStyle: currentPlayStyle } });
+  }
 
   for (let currentDepth = 2; currentDepth <= maxSearchDepth; currentDepth++) {
     currentGlobalDepth = currentDepth;
@@ -449,8 +488,8 @@ self.onmessage = (e: MessageEvent) => {
         break;
       }
       
-      board[move.row][move.col] = aiPlayer;
-      const score = minimax(board, currentDepth, -Infinity, Infinity, false, aiPlayer, humanPlayer, branchLimitFn);
+      board[move.row][move.col] = actualAiPlayer;
+      const score = minimax(board, currentDepth, -Infinity, Infinity, false, actualAiPlayer, actualHumanPlayer, branchLimitFn);
       board[move.row][move.col] = null;
 
       if (isTimeUp()) {
@@ -472,6 +511,26 @@ self.onmessage = (e: MessageEvent) => {
     }
     
     if (!completedDepth || isTimeUp()) break;
+  }
+
+  if (isHintMode) {
+    let reason = "이 자리는 중앙 또는 대각선 전개에 유리한 전략적 요충지입니다.";
+    if (overallBestMove.score >= 50000000) {
+      reason = "이 곳에 두면 공격이 성공하여 다음 수에 오목을 완성합니다!";
+    } else if (overallBestMove.score >= 20000000) {
+      reason = "상대방의 오목 또는 4-3을 막는 필수 수비 자리입니다.";
+    } else if (overallBestMove.score >= 400000) {
+      reason = "공격(3이나 4)을 전개하며 상대방을 압박하는 아주 좋은 자리입니다.";
+    } else if (overallBestMove.score >= 40000) {
+      reason = "잠재적인 상대의 공격을 차단하거나 모양을 갖추는 핵심 자리입니다.";
+    }
+    
+    self.postMessage({ 
+      type: 'hintResult', 
+      bestMove: { row: overallBestMove.row, col: overallBestMove.col },
+      reason
+    });
+    return;
   }
 
   self.postMessage({ 

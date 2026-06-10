@@ -45,6 +45,24 @@ export const useOmok = (
   const [hasStarted, setHasStarted] = useState(false);
   const [aiStatsHistory, setAiStatsHistory] = useState<AiStats[]>([]);
   const [latestAiStats, setLatestAiStats] = useState<AiStats | null>(null);
+
+  const [tutorialMode, setTutorialMode] = useState(() => localStorage.getItem('omokTutorialMode') === 'true');
+  const [tutorialDifficulty, setTutorialDifficulty] = useState<'normal' | 'hard'>(() => (localStorage.getItem('omokTutorialDiff') as 'normal' | 'hard') || 'normal');
+  const [tutorialHint, setTutorialHint] = useState<{ row: number; col: number; reason: string } | null>(null);
+  const [isCalculatingHint, setIsCalculatingHint] = useState(false);
+  const tutorialModeRef = useRef(tutorialMode);
+
+  useEffect(() => {
+    tutorialModeRef.current = tutorialMode;
+  }, [tutorialMode]);
+
+  useEffect(() => {
+    localStorage.setItem('omokTutorialMode', String(tutorialMode));
+  }, [tutorialMode]);
+
+  useEffect(() => {
+    localStorage.setItem('omokTutorialDiff', tutorialDifficulty);
+  }, [tutorialDifficulty]);
   
   const aiWorker = useRef<Worker | null>(null);
 
@@ -70,6 +88,8 @@ export const useOmok = (
     setIsAiThinking(false);
     setAiStatsHistory([]);
     setLatestAiStats(null);
+    setTutorialHint(null);
+    setIsCalculatingHint(false);
 
     if (govatarOpponent) {
       setDifficulty(govatarOpponent.difficulty);
@@ -143,6 +163,9 @@ export const useOmok = (
     const aiPlayer = humanColor === 'black' ? 'white' : 'black';
     const humanPlayer = humanColor;
 
+    setTutorialHint(null);
+    setIsCalculatingHint(false);
+
     const newBoard = board.map(r => [...r]);
     newBoard[row][col] = currentPlayer;
     
@@ -155,7 +178,7 @@ export const useOmok = (
       setWinner(humanPlayer);
       setWinningLine(winLine);
       setTimeout(() => setShowOverlay(true), 1500);
-      if (onGameEndRef.current) {
+      if (onGameEndRef.current && !tutorialModeRef.current) {
         const turnsPlayed = newBoard.flat().filter(c => c !== null).length;
         onGameEndRef.current(true, difficulty, turnsPlayed);
       }
@@ -180,8 +203,14 @@ export const useOmok = (
       
       if (aiWorker.current) {
         aiWorker.current.onmessage = (e) => {
-          const { type, bestMove, stats } = e.data;
+          const { type, bestMove, stats, reason } = e.data;
           
+          if (type === 'hintResult') {
+            setTutorialHint({ row: bestMove.row, col: bestMove.col, reason });
+            setIsCalculatingHint(false);
+            return;
+          }
+
           if (type === 'progress') {
             if (stats) {
               setLatestAiStats(stats);
@@ -205,7 +234,7 @@ export const useOmok = (
             setWinner(aiPlayer);
             setWinningLine(winLine);
             setTimeout(() => setShowOverlay(true), 1500);
-            if (onGameEndRef.current) {
+            if (onGameEndRef.current && !tutorialModeRef.current) {
               const turnsPlayed = newBoardAfterAi.flat().filter(c => c !== null).length;
               onGameEndRef.current(false, difficulty, turnsPlayed);
             }
@@ -233,10 +262,29 @@ export const useOmok = (
         }
 
         // Post message to worker to compute next move
-        aiWorker.current.postMessage({ board, aiPlayer, difficulty, humanColor, playStyle: currentPlayStyle });
+        const effectiveDifficulty = tutorialMode ? tutorialDifficulty : difficulty;
+        aiWorker.current.postMessage({ type: 'aiMove', board, aiPlayer, difficulty: effectiveDifficulty, humanColor, playStyle: currentPlayStyle });
       }
     }
-  }, [currentPlayer, board, winner, humanColor, isColorDeciding, hasStarted, difficulty, playStyle, basePlayStyle]);
+  }, [currentPlayer, board, winner, humanColor, isColorDeciding, hasStarted, difficulty, playStyle, basePlayStyle, tutorialMode, tutorialDifficulty]);
+
+  const requestHint = useCallback(() => {
+    if (!hasStarted || winner || isColorDeciding || currentPlayer !== humanColor || isAiThinking || isCalculatingHint) return;
+    
+    setIsCalculatingHint(true);
+    setTutorialHint(null);
+    const aiPlayer = humanColor === 'black' ? 'white' : 'black';
+    if (aiWorker.current) {
+      aiWorker.current.postMessage({
+        type: 'hint',
+        board,
+        aiPlayer,
+        difficulty: 'god',
+        humanColor,
+        playStyle
+      });
+    }
+  }, [hasStarted, winner, isColorDeciding, currentPlayer, humanColor, isAiThinking, isCalculatingHint, board, playStyle]);
 
   return {
     board,
@@ -256,6 +304,13 @@ export const useOmok = (
     hasStarted,
     playStyle,
     aiStatsHistory,
-    latestAiStats
+    latestAiStats,
+    tutorialMode,
+    setTutorialMode,
+    tutorialDifficulty,
+    setTutorialDifficulty,
+    tutorialHint,
+    isCalculatingHint,
+    requestHint
   };
 };

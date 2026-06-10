@@ -207,10 +207,10 @@ button {
     background-position: top left;
   }
   .pdf-main-content {
-    width: 100%;
-    max-width: 1200px;
+    width: 85%;
+    max-width: 1000px;
     border-right: 1px solid var(--color-border-default);
-    padding: var(--space-400) var(--space-400);
+    padding: var(--space-400) var(--space-600);
     min-height: 100%;
     background-color: var(--color-bg-primary);
   }
