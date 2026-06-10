@@ -2,7 +2,7 @@
 export type Player = 'black' | 'white' | null;
 export type BoardState = Player[][];
 export type Position = { row: number; col: number };
-export type Difficulty = 'easy' | 'normal' | 'hard' | 'expert' | 'god';
+export type Difficulty = 'easy' | 'normal' | 'hard' | 'expert' | 'god' | 'transcendent';
 
 const BOARD_SIZE = 15;
 
@@ -365,8 +365,8 @@ self.onmessage = (e: MessageEvent) => {
   currentGlobalBestScore = 0;
   isHintMode = (type === 'hint');
   
-  // 4.5s constraint
-  timeLimitMs = 4300; 
+  // Time limits
+  timeLimitMs = actualDifficulty === 'transcendent' ? 7800 : 4300; 
   
   let actualAiPlayer = aiPlayer;
   let actualHumanPlayer = humanColor;
@@ -379,9 +379,9 @@ self.onmessage = (e: MessageEvent) => {
   }
   
   // 1. Check for immediate VCF
-  if (actualDifficulty === 'expert' || actualDifficulty === 'god') {
-    // VCF max depth 11 for expert, 15 for god
-    const vcfDepth = actualDifficulty === 'god' ? 15 : 11;
+  if (actualDifficulty === 'expert' || actualDifficulty === 'god' || actualDifficulty === 'transcendent') {
+    // VCF max depth 11 for expert, 15 for god, 18 for transcendent
+    const vcfDepth = actualDifficulty === 'transcendent' ? 18 : (actualDifficulty === 'god' ? 15 : 11);
     const vcfMove = findVCF(board, actualAiPlayer, actualHumanPlayer, vcfDepth, true);
     if (vcfMove && !isTimeUp()) {
       if (isHintMode) {
@@ -443,25 +443,26 @@ self.onmessage = (e: MessageEvent) => {
     'normal': 3,
     'hard': 4,
     'expert': 6,
-    'god': 8
+    'god': 8,
+    'transcendent': 12
   };
   
   let maxSearchDepth = depthMap[actualDifficulty as Difficulty] || 4;
   let rootBranchLimit = 10;
   let branchLimitFn: (d: number, tactical: boolean) => number = (d, _tactical) => d >= 6 ? 10 : d >= 4 ? 8 : 6;
 
-  if (actualDifficulty === 'expert' || actualDifficulty === 'god') {
+  if (actualDifficulty === 'expert' || actualDifficulty === 'god' || actualDifficulty === 'transcendent') {
     const isTactical = moves.length > 0 && moves[0].score > 40000;
     if (isTactical) {
       // Tactical Situation: Narrow & Deep
-      maxSearchDepth = actualDifficulty === 'god' ? 12 : 8;
-      rootBranchLimit = actualDifficulty === 'god' ? 8 : 6;
-      branchLimitFn = (_d, tactical) => tactical ? 6 : 4;
+      maxSearchDepth = actualDifficulty === 'transcendent' ? 16 : (actualDifficulty === 'god' ? 12 : 8);
+      rootBranchLimit = actualDifficulty === 'transcendent' ? 10 : (actualDifficulty === 'god' ? 8 : 6);
+      branchLimitFn = (_d, tactical) => tactical ? (actualDifficulty === 'transcendent' ? 8 : 6) : 4;
     } else {
       // Strategic Situation: Wide & Shallow
-      maxSearchDepth = actualDifficulty === 'god' ? 8 : 6;
-      rootBranchLimit = actualDifficulty === 'god' ? 16 : 12; // Adjusted down for 4.5s
-      branchLimitFn = (d, tactical) => tactical ? 8 : (d >= 6 ? 10 : d >= 4 ? 8 : 6);
+      maxSearchDepth = actualDifficulty === 'transcendent' ? 10 : (actualDifficulty === 'god' ? 8 : 6);
+      rootBranchLimit = actualDifficulty === 'transcendent' ? 20 : (actualDifficulty === 'god' ? 16 : 12); // Adjusted down for time limit
+      branchLimitFn = (d, tactical) => tactical ? (actualDifficulty === 'transcendent' ? 10 : 8) : (d >= 6 ? (actualDifficulty === 'transcendent' ? 12 : 10) : d >= 4 ? 8 : 6);
     }
   } else {
     rootBranchLimit = maxSearchDepth >= 6 ? 12 : maxSearchDepth >= 4 ? 10 : 8;

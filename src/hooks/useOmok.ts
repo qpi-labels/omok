@@ -3,7 +3,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 export type Player = 'black' | 'white' | null;
 export type BoardState = Player[][];
 export type Position = { row: number; col: number };
-export type Difficulty = 'easy' | 'normal' | 'hard' | 'expert' | 'god';
+export type Difficulty = 'easy' | 'normal' | 'hard' | 'expert' | 'god' | 'transcendent';
 export interface AiStats {
   nodesEvaluated: number;
   searchDepth: number;
@@ -97,7 +97,7 @@ export const useOmok = (
       setPlayStyle(govatarOpponent.playStyle);
     } else {
       let initialPlayStyle = 0.5;
-      if (['hard', 'expert', 'god'].includes(difficulty)) {
+      if (['hard', 'expert', 'god', 'transcendent'].includes(difficulty)) {
         initialPlayStyle = Math.random(); // 0.0 to 1.0 range
       }
       setBasePlayStyle(initialPlayStyle);
@@ -246,7 +246,7 @@ export const useOmok = (
         };
         
         let currentPlayStyle = playStyle;
-        if (difficulty === 'expert' || difficulty === 'god') {
+        if (difficulty === 'expert' || difficulty === 'god' || difficulty === 'transcendent') {
           // 10% 확률로 성향이 팍팍 바뀜 (큰 변동)
           if (Math.random() < 0.1) {
             const jump = (Math.random() * 0.8) - 0.4;

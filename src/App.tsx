@@ -312,6 +312,7 @@ function App() {
                     <li><b>고수</b>: 승리 +40 / 패배 -20</li>
                     <li><b>초고수</b>: 승리 +80 / 패배 -40</li>
                     <li><b>신</b>: 승리 +200 / 패배 -100</li>
+                    <li><b>초월자</b>: 승리 +500 / 패배 -200</li>
                   </ul>
                   <p>높은 난이도일수록 탐색 깊이가 크게 증가하여 전략적인 수를 계산합니다.</p>
                 </div>
@@ -325,7 +326,7 @@ function App() {
                   평가 중에는 난이도를 볼 수 없습니다.
                 </div>
               ) : (
-                (['easy', 'normal', 'hard', 'expert', 'god'] as const).map((level) => {
+                (['easy', 'normal', 'hard', 'expert', 'god', 'transcendent'] as const).map((level) => {
                   const isSelected = tutorialMode ? tutorialDifficulty === level : difficulty === level;
                   return (
                   <button
@@ -346,7 +347,7 @@ function App() {
                     }}
                   >
                     <span className="pdf-text-label-14-mono" style={{ fontSize: '12px', fontWeight: isSelected ? '700' : '400' }}>
-                      {level === 'easy' ? '하수' : level === 'normal' ? '중수' : level === 'hard' ? '고수' : level === 'expert' ? '초고수' : '신'}
+                      {level === 'easy' ? '하수' : level === 'normal' ? '중수' : level === 'hard' ? '고수' : level === 'expert' ? '초고수' : level === 'god' ? '신' : '초월자'}
                     </span>
                   </button>
                 )})
