@@ -390,7 +390,7 @@ function App() {
 
           <div className="pdf-mt-400" style={{ width: '100%', overflowX: 'auto', paddingBottom: '16px', display: 'flex' }}>
             <div style={{ flex: 1 }}></div>
-            <div className="pdf-flex-row" style={{ alignItems: 'flex-start', flexWrap: 'nowrap', flexShrink: 0 }}>
+            <div className="pdf-flex-row" style={{ alignItems: 'flex-start', flexWrap: 'nowrap', flexShrink: 1, maxWidth: '100%' }}>
               <div className="board-wrapper" style={{ flexShrink: 0, margin: (showAiStats && isPracticeMode) ? '0 16px' : '0', transition: 'margin 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
                 <div className="board">
                   {/* The outer grid border */}
@@ -490,14 +490,15 @@ function App() {
 
               {/* Pinned AI Stats Panel */}
               <div style={{
-                width: (showAiStats && isPracticeMode) ? '340px' : '0px',
+                flex: (showAiStats && isPracticeMode) ? '1 1 340px' : '0 0 0px',
+                maxWidth: '340px',
+                minWidth: (showAiStats && isPracticeMode) ? '200px' : '0px',
                 opacity: (showAiStats && isPracticeMode) ? 1 : 0,
                 margin: (showAiStats && isPracticeMode) ? '0 16px' : '0px',
                 overflow: 'hidden',
-                transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                flexShrink: 0
+                transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)'
               }}>
-                <div className="pdf-panel" style={{ width: '340px', minWidth: '340px', margin: 0, boxSizing: 'border-box' }}>
+                <div className="pdf-panel" style={{ width: '100%', margin: 0, boxSizing: 'border-box' }}>
                   <div className="pdf-flex-row pdf-items-center pdf-justify-between pdf-mb-200">
                     <div className="pdf-text-heading-20">AI 연산 정보</div>
                   </div>
