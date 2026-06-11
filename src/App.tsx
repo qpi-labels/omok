@@ -19,6 +19,7 @@ function App() {
   const [activeRoom, setActiveRoom] = useState<NetworkRoom | null>(null);
   const [networkRole, setNetworkRole] = useState<'black' | 'white' | null>(null); // Guest is white, Creator is black
   const isUpdatingNetworkRef = useRef(false);
+  const prevAlkkagiPlayerRef = useRef<string | null>(null);
 
   const { profile, loginWithGoogle, logout, updateGameResult, updateAlkkagiResult, updateNickname, startGovatarTraining, cancelGovatarTraining, rankBadge, isLoading, user } = useFirebase();
   const [gameMode, setGameMode] = useState<'omok' | 'alkkagi'>('omok');
@@ -28,7 +29,7 @@ function App() {
   const { board, currentPlayer, winner, showOverlay, winningLine, lastMove, isAiThinking, humanColor, isColorDeciding, decidedColor, difficulty, setDifficulty, playMove, resetGame, hasStarted, aiStatsHistory, latestAiStats, tutorialMode, setTutorialMode, tutorialDifficulty, setTutorialDifficulty, tutorialHint, isCalculatingHint, requestHint, setBoard, setWinner, setWinningLine, setLastMove, setCurrentPlayer, setHumanColor, decidedColor: _unusedDecidedColor, setDecidedColor, setHasStarted } = useOmok((isWin, diff, turnsPlayed) => {
     if (omokMode === 'vs_lan') {
       // Net game result reporting
-      updateGameResult('normal', isWin, turnsPlayed, null);
+      updateGameResult('normal', isWin, turnsPlayed, null, true);
     } else if ((!isPracticeMode || profile?.govatarTrainingMode) && omokMode !== 'vs_player') {
       updateGameResult(diff, isWin, turnsPlayed, govatarOpponent);
     }
@@ -47,11 +48,11 @@ function App() {
     setCurrentPlayer: setAlkkagiCurrentPlayer,
     setWinner: setAlkkagiWinner,
     setIsSimulating: setAlkkagiIsSimulating
-  } = useAlkkagi(isPracticeMode, alkkagiMode === 'vs_player' || alkkagiMode === 'vs_lan', alkkagiStonesCount, (isWin) => {
+  } = useAlkkagi(isPracticeMode, alkkagiMode === 'vs_player' || alkkagiMode === 'vs_lan', alkkagiStonesCount, (isWin, turnCount) => {
     if (alkkagiMode === 'vs_lan') {
-      updateAlkkagiResult(isWin);
+      updateAlkkagiResult(isWin, true, turnCount);
     } else if (!isPracticeMode && alkkagiMode !== 'vs_player') {
-      updateAlkkagiResult(isWin);
+      updateAlkkagiResult(isWin, false, turnCount);
     }
   });
 
@@ -197,11 +198,14 @@ function App() {
 
   useEffect(() => {
     if (alkkagiMode === 'vs_lan' && gameMode === 'alkkagi' && activeRoom?.id) {
-      // Only sync if we are the current player (prevent ping-pong feedback sync loops)
-      if (alkkagiCurrentPlayer === networkRole) {
+      // Sync if it is our turn or was just our turn (to send the final end-of-turn/simulation state)
+      const isMyTurn = alkkagiCurrentPlayer === networkRole;
+      const wasMyTurn = prevAlkkagiPlayerRef.current === networkRole;
+      if (isMyTurn || wasMyTurn) {
         syncGameStateToNetwork('alkkagi');
       }
     }
+    prevAlkkagiPlayerRef.current = alkkagiCurrentPlayer;
   }, [alkkagiStones, alkkagiCurrentPlayer, alkkagiWinner, alkkagiIsSimulating, alkkagiMode, gameMode, activeRoom?.id, networkRole]);
 
   const changeRoomGameMode = (newMode: 'omok' | 'alkkagi', initialStones: any[] = []) => {

@@ -92,7 +92,7 @@ export const useFirebase = () => {
     await firebaseSignOut(auth);
   };
 
-  const updateGameResult = useCallback(async (difficulty: Difficulty, isWin: boolean, turnsPlayed: number = 0, govatarOpponent?: { uid: string; name: string; playStyle: number; difficulty: Difficulty } | null) => {
+  const updateGameResult = useCallback(async (difficulty: Difficulty, isWin: boolean, turnsPlayed: number = 0, govatarOpponent?: { uid: string; name: string; playStyle: number; difficulty: Difficulty } | null, isLAN: boolean = false) => {
     if (!user || !profile || !db) return;
 
     const pointsMap: Record<Difficulty, { win: number; loss: number }> = {
@@ -114,7 +114,10 @@ export const useFirebase = () => {
     let govatarRewardReceived = profile.govatarRewardReceived || false;
 
     // During training mode, regular win/loss points and stats are NOT updated.
-    const deltaPoints = govatarTrainingMode ? 0 : (isWin ? pointsMap[difficulty].win : pointsMap[difficulty].loss);
+    let deltaPoints = govatarTrainingMode ? 0 : (isWin ? pointsMap[difficulty].win : pointsMap[difficulty].loss);
+    if (isLAN && !govatarTrainingMode) {
+      deltaPoints = isWin ? (turnsPlayed * 2) : -(turnsPlayed * 1);
+    }
     let newPoints = Math.max(0, profile.points + deltaPoints);
     let actualDelta = newPoints - profile.points;
 
@@ -238,12 +241,16 @@ export const useFirebase = () => {
     }
   }, [user, profile]);
 
-  const updateAlkkagiResult = useCallback(async (isWin: boolean) => {
+  const updateAlkkagiResult = useCallback(async (isWin: boolean, isLAN: boolean = false, turnCount: number = 0) => {
     if (!user || !profile || !db) return;
 
     // Simple Alkkagi Elo: Win gives +20, Loss gives -10
     const currentAlkkagiPoints = profile.alkkagiPoints || 0;
-    const deltaPoints = isWin ? 20 : -10;
+    let deltaPoints = isWin ? 20 : -10;
+    if (isLAN) {
+      deltaPoints = isWin ? (turnCount * 3) : -(turnCount * 1.5);
+      deltaPoints = Math.round(deltaPoints);
+    }
     const newPoints = Math.max(0, currentAlkkagiPoints + deltaPoints);
     const actualDelta = newPoints - currentAlkkagiPoints;
 

@@ -21,7 +21,7 @@ export const useAlkkagi = (
   isPracticeMode: boolean,
   twoPlayerMode: boolean,
   initialStoneCount: number = 7,
-  onGameEnd?: (isWin: boolean) => void
+  onGameEnd?: (isWin: boolean, turnCount: number) => void
 ) => {
   const [stones, setStones] = useState<AlkkagiStone[]>([]);
   const [currentPlayer, setCurrentPlayer] = useState<'black' | 'white'>('black');
@@ -196,13 +196,13 @@ export const useAlkkagi = (
           // Both fell off? Player whose turn it was (who initiated the shot) wins
           const w = currentPlayer === 'black' ? 'black' : 'white';
           setWinner(w);
-          if (onGameEndRef.current) onGameEndRef.current(w === 'black');
+          if (onGameEndRef.current) onGameEndRef.current(w === 'black', turnCount);
         } else if (blackCount === 0) {
           setWinner('white');
-          if (onGameEndRef.current) onGameEndRef.current(false);
+          if (onGameEndRef.current) onGameEndRef.current(false, turnCount);
         } else if (whiteCount === 0) {
           setWinner('black');
-          if (onGameEndRef.current) onGameEndRef.current(true);
+          if (onGameEndRef.current) onGameEndRef.current(true, turnCount);
         } else {
           // Switch turn
           setCurrentPlayer((prev) => (prev === 'black' ? 'white' : 'black'));
