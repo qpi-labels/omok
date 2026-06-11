@@ -364,6 +364,8 @@ function App() {
       
       setNetworkRole('white');
       setHumanColor('white');
+      if (gameMode === 'omok') setOmokMode('vs_lan');
+      else setAlkkagiMode('vs_lan');
       
       setActiveRoom({
         id: cleanRoomCode,
@@ -433,14 +435,19 @@ function App() {
     }
   };
 
-  const handleExitRoom = () => {
+  const handleExitRoom = (newMode?: 'vs_ai' | 'vs_player' | 'vs_lan') => {
     import('./utils/p2pNetwork').then(({ closeP2P }) => {
       closeP2P();
     });
     setActiveRoom(null);
     setNetworkRole(null);
-    if (gameMode === 'omok') setOmokMode('vs_ai');
-    else setAlkkagiMode('vs_ai');
+    if (newMode) {
+      if (gameMode === 'omok') setOmokMode(newMode);
+      else setAlkkagiMode(newMode);
+    } else {
+      if (gameMode === 'omok') setOmokMode('vs_ai');
+      else setAlkkagiMode('vs_ai');
+    }
   };
 
   useEffect(() => {
@@ -627,7 +634,7 @@ function App() {
                 <>
                   <div className="pdf-flex-row" style={{ display: 'inline-flex', backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-default)', borderRadius: '8px', padding: '4px', gap: '4px', width: '100%', opacity: profile?.govatarTrainingMode ? 0.6 : 1, pointerEvents: profile?.govatarTrainingMode ? 'none' : 'auto' }}>
                     <button
-                      onClick={() => { setOmokMode('vs_ai'); handleExitRoom(); setTimeout(handleNewGame, 50); }}
+                      onClick={() => { handleExitRoom('vs_ai'); setTimeout(handleNewGame, 50); }}
                       style={{
                         flex: 1,
                         padding: '6px 4px',
@@ -643,7 +650,7 @@ function App() {
                       AI 대전
                     </button>
                     <button
-                      onClick={() => { setOmokMode('vs_player'); handleExitRoom(); setTimeout(handleNewGame, 50); }}
+                      onClick={() => { handleExitRoom('vs_player'); setTimeout(handleNewGame, 50); }}
                       style={{
                         flex: 1,
                         padding: '6px 4px',
@@ -692,7 +699,7 @@ function App() {
                           <button className="pdf-secondary-btn pdf-w-full pdf-justify-center" style={{ fontSize: '12px' }} onClick={() => { handleNewGame(); syncGameStateToNetwork('omok'); }}>
                             방 게임 초기화
                           </button>
-                          <button className="pdf-secondary-btn pdf-w-full pdf-justify-center" style={{ fontSize: '12px', color: 'var(--color-functional-red)' }} onClick={handleExitRoom}>
+                          <button className="pdf-secondary-btn pdf-w-full pdf-justify-center" style={{ fontSize: '12px', color: 'var(--color-functional-red)' }} onClick={() => handleExitRoom()}>
                             방 나가기
                           </button>
                         </div>
@@ -742,7 +749,7 @@ function App() {
                 <>
                   <div className="pdf-flex-row" style={{ display: 'inline-flex', backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-default)', borderRadius: '8px', padding: '4px', gap: '4px', width: '100%' }}>
                     <button
-                      onClick={() => { setAlkkagiMode('vs_ai'); handleExitRoom(); setTimeout(alkkagiResetGame, 50); }}
+                      onClick={() => { handleExitRoom('vs_ai'); setTimeout(alkkagiResetGame, 50); }}
                       style={{
                         flex: 1,
                         padding: '6px 4px',
@@ -758,7 +765,7 @@ function App() {
                       AI 대전
                     </button>
                     <button
-                      onClick={() => { setAlkkagiMode('vs_player'); handleExitRoom(); setTimeout(alkkagiResetGame, 50); }}
+                      onClick={() => { handleExitRoom('vs_player'); setTimeout(alkkagiResetGame, 50); }}
                       style={{
                         flex: 1,
                         padding: '6px 4px',
@@ -807,7 +814,7 @@ function App() {
                           <button className="pdf-secondary-btn pdf-w-full pdf-justify-center" style={{ fontSize: '12px' }} onClick={() => { alkkagiResetGame(); syncGameStateToNetwork('alkkagi'); }}>
                             방 게임 초기화
                           </button>
-                          <button className="pdf-secondary-btn pdf-w-full pdf-justify-center" style={{ fontSize: '12px', color: 'var(--color-functional-red)' }} onClick={handleExitRoom}>
+                          <button className="pdf-secondary-btn pdf-w-full pdf-justify-center" style={{ fontSize: '12px', color: 'var(--color-functional-red)' }} onClick={() => handleExitRoom()}>
                             방 나가기
                           </button>
                         </div>
@@ -1340,10 +1347,10 @@ function App() {
                       stones={alkkagiStones}
                       currentPlayer={alkkagiCurrentPlayer}
                       humanColor={
-                        alkkagiMode === 'vs_player'
-                          ? alkkagiCurrentPlayer
-                          : alkkagiMode === 'vs_lan'
+                        alkkagiMode === 'vs_lan'
                           ? networkRole || 'black'
+                          : alkkagiMode === 'vs_player'
+                          ? alkkagiCurrentPlayer
                           : 'black'
                       }
                       isSimulating={alkkagiIsSimulating}
