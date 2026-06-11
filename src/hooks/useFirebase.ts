@@ -12,6 +12,9 @@ export interface UserProfile {
   points: number;
   wins: number;
   losses: number;
+  alkkagiPoints?: number;
+  alkkagiWins?: number;
+  alkkagiLosses?: number;
   govatarGamesPlayed?: number;
   govatarAvgTurns?: number;
   govatarAvgSkill?: number;
@@ -49,6 +52,9 @@ export const useFirebase = () => {
               points: 0,
               wins: 0,
               losses: 0,
+              alkkagiPoints: 0,
+              alkkagiWins: 0,
+              alkkagiLosses: 0,
               govatarGamesPlayed: 0,
               govatarAvgTurns: 0,
               govatarAvgSkill: 0,
@@ -89,12 +95,13 @@ export const useFirebase = () => {
   const updateGameResult = useCallback(async (difficulty: Difficulty, isWin: boolean, turnsPlayed: number = 0, govatarOpponent?: { uid: string; name: string; playStyle: number; difficulty: Difficulty } | null) => {
     if (!user || !profile || !db) return;
 
-    const pointsMap = {
+    const pointsMap: Record<Difficulty, { win: number; loss: number }> = {
       'easy': { win: 10, loss: -5 },
       'normal': { win: 20, loss: -10 },
       'hard': { win: 40, loss: -20 },
       'expert': { win: 80, loss: -40 },
-      'god': { win: 200, loss: -100 }
+      'god': { win: 200, loss: -100 },
+      'transcendent': { win: 500, loss: -200 }
     };
 
     let govatarGamesPlayed = profile.govatarGamesPlayed || 0;
@@ -112,7 +119,7 @@ export const useFirebase = () => {
     let actualDelta = newPoints - profile.points;
 
     const difficultyScores: Record<Difficulty, number> = {
-      'easy': 1, 'normal': 2, 'hard': 3, 'expert': 4, 'god': 5
+      'easy': 1, 'normal': 2, 'hard': 3, 'expert': 4, 'god': 5, 'transcendent': 6
     };
     const diffScore = difficultyScores[difficulty] || 2;
     const gameSkillScore = isWin ? diffScore : Math.max(1, diffScore - 1);
@@ -128,7 +135,7 @@ export const useFirebase = () => {
         govatarPlayStyle = Math.max(0, Math.min(1, 1 - (avgTurns - 20) / 40));
         
         const avgSkill = Math.round(govatarAvgSkill / 5);
-        const diffMap: Record<number, Difficulty> = { 1: 'easy', 2: 'normal', 3: 'hard', 4: 'expert', 5: 'god' };
+        const diffMap: Record<number, Difficulty> = { 1: 'easy', 2: 'normal', 3: 'hard', 4: 'expert', 5: 'god', 6: 'transcendent' };
         govatarDifficulty = diffMap[avgSkill] || 'normal';
         govatarTrainingMode = false; // Turn off training mode after completing
       }
@@ -140,7 +147,8 @@ export const useFirebase = () => {
         'normal': 150,
         'hard': 400,
         'expert': 1000,
-        'god': 2500
+        'god': 2500,
+        'transcendent': 5000
       };
       const bonusPoints = rewardMap[govatarDifficulty];
       govatarRewardReceived = true;
@@ -204,7 +212,7 @@ export const useFirebase = () => {
           if (ownerSnap.exists()) {
             const ownerData = ownerSnap.data() as UserProfile;
             const passivePointsMap: Record<Difficulty, number> = {
-              'easy': 2, 'normal': 5, 'hard': 10, 'expert': 20, 'god': 50
+              'easy': 2, 'normal': 5, 'hard': 10, 'expert': 20, 'god': 50, 'transcendent': 100
             };
             const passivePoints = passivePointsMap[govatarOpponent.difficulty] || 5;
             const newOwnerPoints = (ownerData.points || 0) + passivePoints;
@@ -230,6 +238,49 @@ export const useFirebase = () => {
     }
   }, [user, profile]);
 
+  const updateAlkkagiResult = useCallback(async (isWin: boolean) => {
+    if (!user || !profile || !db) return;
+
+    // Simple Alkkagi Elo: Win gives +20, Loss gives -10
+    const currentAlkkagiPoints = profile.alkkagiPoints || 0;
+    const deltaPoints = isWin ? 20 : -10;
+    const newPoints = Math.max(0, currentAlkkagiPoints + deltaPoints);
+    const actualDelta = newPoints - currentAlkkagiPoints;
+
+    const incrementWins = isWin ? 1 : 0;
+    const incrementLosses = isWin ? 0 : 1;
+
+    const userRef = doc(db, 'users', user.uid);
+
+    // Optimistic UI update
+    const updatedProfile = {
+      ...profile,
+      alkkagiPoints: newPoints,
+      alkkagiWins: (profile.alkkagiWins || 0) + incrementWins,
+      alkkagiLosses: (profile.alkkagiLosses || 0) + incrementLosses,
+    };
+    setProfile(updatedProfile);
+
+    try {
+      await setDoc(userRef, {
+        alkkagiPoints: increment(actualDelta),
+        alkkagiWins: increment(incrementWins),
+        alkkagiLosses: increment(incrementLosses),
+      }, { merge: true });
+
+      await updateGlobalLeaderboard({
+        uid: user.uid,
+        displayName: profile.displayName || user.displayName || 'Guest',
+        points: newPoints,
+        rankBadge: getRankBadge(newPoints),
+      }, 'alkkagi');
+
+    } catch (error) {
+      console.error('Error updating alkkagi result:', error);
+      setProfile(profile); // Revert optimistic update
+    }
+  }, [user, profile]);
+
   const updateNickname = async (newNickname: string) => {
     if (!user || !profile || !db) return;
     const userRef = doc(db, 'users', user.uid);
@@ -246,7 +297,16 @@ export const useFirebase = () => {
         displayName: newNickname,
         points: profile.points,
         rankBadge: getRankBadge(profile.points)
-      });
+      }, 'omok');
+
+      if (profile.alkkagiPoints !== undefined) {
+        await updateGlobalLeaderboard({
+          uid: user.uid,
+          displayName: newNickname,
+          points: profile.alkkagiPoints || 0,
+          rankBadge: getRankBadge(profile.alkkagiPoints || 0)
+        }, 'alkkagi');
+      }
     } catch (error) {
       console.error('Error updating nickname:', error);
       setProfile(profile); // Revert on failure
@@ -301,6 +361,7 @@ export const useFirebase = () => {
     loginWithGoogle,
     logout,
     updateGameResult,
+    updateAlkkagiResult,
     updateNickname,
     startGovatarTraining,
     cancelGovatarTraining,

@@ -1,7 +1,8 @@
 import { doc, runTransaction } from 'firebase/firestore';
 import { db } from '../firebase';
 
-let leaderboardCache: { topUids: Set<string>, minPoints: number } | null = null;
+let omokCache: { topUids: Set<string>, minPoints: number } | null = null;
+let alkkagiCache: { topUids: Set<string>, minPoints: number } | null = null;
 
 export interface LeaderboardEntry {
   uid: string;
@@ -20,18 +21,21 @@ export const getRankBadge = (points: number) => {
   return 'Bronze';
 };
 
-export const updateGlobalLeaderboard = async (userEntry: LeaderboardEntry) => {
+export const updateGlobalLeaderboard = async (userEntry: LeaderboardEntry, category: 'omok' | 'alkkagi' = 'omok') => {
   // If db is not initialized properly (e.g. env vars missing), silently fail
   if (!db) return;
 
+  const currentCache = category === 'omok' ? omokCache : alkkagiCache;
+
   // Optimistic cache check to avoid unnecessary transaction reads
-  if (leaderboardCache) {
-    if (!leaderboardCache.topUids.has(userEntry.uid) && userEntry.points <= leaderboardCache.minPoints) {
+  if (currentCache) {
+    if (!currentCache.topUids.has(userEntry.uid) && userEntry.points <= currentCache.minPoints) {
       return; // Does not qualify, skip read
     }
   }
 
-  const leaderboardRef = doc(db, 'leaderboard', 'global');
+  const docKey = category === 'omok' ? 'global' : 'alkkagi';
+  const leaderboardRef = doc(db, 'leaderboard', docKey);
 
   try {
     await runTransaction(db, async (transaction) => {
@@ -51,10 +55,12 @@ export const updateGlobalLeaderboard = async (userEntry: LeaderboardEntry) => {
           topPlayers.push(userEntry);
         } else {
           // Cache the state even if not written, to prevent future reads
-          leaderboardCache = {
+          const newCache = {
             topUids: new Set(topPlayers.map(p => p.uid)),
             minPoints: topPlayers.length === 100 ? topPlayers[99].points : 0
           };
+          if (category === 'omok') omokCache = newCache;
+          else alkkagiCache = newCache;
           return;
         }
       }
@@ -63,10 +69,12 @@ export const updateGlobalLeaderboard = async (userEntry: LeaderboardEntry) => {
       topPlayers = topPlayers.slice(0, 100);
 
       // Update cache
-      leaderboardCache = {
+      const updatedCache = {
         topUids: new Set(topPlayers.map(p => p.uid)),
         minPoints: topPlayers.length === 100 ? topPlayers[99].points : 0
       };
+      if (category === 'omok') omokCache = updatedCache;
+      else alkkagiCache = updatedCache;
 
       transaction.set(leaderboardRef, { topPlayers });
     });

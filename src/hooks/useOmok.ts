@@ -20,7 +20,8 @@ const createEmptyBoard = (): BoardState => {
 
 export const useOmok = (
   onGameEnd?: (isHumanWin: boolean, diff: Difficulty, turnsPlayed: number) => void,
-  govatarOpponent?: { uid: string; name: string; playStyle: number; difficulty: Difficulty } | null
+  govatarOpponent?: { uid: string; name: string; playStyle: number; difficulty: Difficulty } | null,
+  twoPlayerMode?: boolean
 ) => {
   const onGameEndRef = useRef(onGameEnd);
   useEffect(() => {
@@ -158,27 +159,30 @@ export const useOmok = (
   };
 
   const playMove = useCallback((row: number, col: number) => {
-    if (!hasStarted || board[row][col] || winner || isAiThinking || currentPlayer !== humanColor || isColorDeciding) return;
+    if (!hasStarted || board[row][col] || winner || isAiThinking || isColorDeciding) return;
+    
+    // In twoPlayerMode, anyone can play on their turn. In AI mode, currentPlayer must match humanColor.
+    if (!twoPlayerMode && currentPlayer !== humanColor) return;
 
-    const aiPlayer = humanColor === 'black' ? 'white' : 'black';
-    const humanPlayer = humanColor;
+    const nextPlayer = currentPlayer === 'black' ? 'white' : 'black';
+    const activePlayer = currentPlayer as 'black' | 'white';
 
     setTutorialHint(null);
     setIsCalculatingHint(false);
 
     const newBoard = board.map(r => [...r]);
-    newBoard[row][col] = currentPlayer;
+    newBoard[row][col] = activePlayer;
     
     setBoard(newBoard);
     setLastMove({ row, col });
-    setCurrentPlayer(aiPlayer);
+    setCurrentPlayer(nextPlayer);
 
-    const winLine = checkWin(newBoard, row, col, humanPlayer);
+    const winLine = checkWin(newBoard, row, col, activePlayer);
     if (winLine) {
-      setWinner(humanPlayer);
+      setWinner(activePlayer);
       setWinningLine(winLine);
       setTimeout(() => setShowOverlay(true), 1500);
-      if (onGameEndRef.current && !tutorialModeRef.current) {
+      if (onGameEndRef.current && !tutorialModeRef.current && !twoPlayerMode) {
         const turnsPlayed = newBoard.flat().filter(c => c !== null).length;
         onGameEndRef.current(true, difficulty, turnsPlayed);
       }
@@ -191,11 +195,11 @@ export const useOmok = (
       return;
     }
 
-  }, [board, currentPlayer, winner, isAiThinking, humanColor, isColorDeciding]);
+  }, [board, currentPlayer, winner, isAiThinking, humanColor, isColorDeciding, twoPlayerMode, difficulty]);
 
   // AI Turn
   useEffect(() => {
-    if (!hasStarted || winner || isColorDeciding) return;
+    if (!hasStarted || winner || isColorDeciding || twoPlayerMode) return;
     
     if (currentPlayer !== humanColor && !isAiThinking) {
       setIsAiThinking(true);
@@ -311,6 +315,15 @@ export const useOmok = (
     setTutorialDifficulty,
     tutorialHint,
     isCalculatingHint,
-    requestHint
+    requestHint,
+    setBoard,
+    setWinner,
+    setWinningLine,
+    setLastMove,
+    setCurrentPlayer,
+    setHumanColor,
+    setIsColorDeciding,
+    setDecidedColor,
+    setHasStarted
   };
 };

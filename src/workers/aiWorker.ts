@@ -365,12 +365,12 @@ self.onmessage = (e: MessageEvent) => {
   currentGlobalBestScore = 0;
   isHintMode = (type === 'hint');
   
-  // Time limits
-  timeLimitMs = actualDifficulty === 'transcendent' ? 7800 : 4300; 
-  
   let actualAiPlayer = aiPlayer;
   let actualHumanPlayer = humanColor;
   let actualDifficulty = difficulty;
+
+  // Time limits
+  timeLimitMs = actualDifficulty === 'transcendent' ? 7800 : 4300;
 
   if (isHintMode) {
     actualAiPlayer = humanColor;
