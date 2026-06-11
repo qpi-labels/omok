@@ -350,6 +350,9 @@ function App() {
       p.on('connection', (conn) => {
         registerConnection(conn);
         
+        // Block sync effects from sending stale state during reset
+        isUpdatingNetworkRef.current = true;
+        
         // Notify host active status
         setActiveRoom((prev) => prev ? { ...prev, status: 'active' } : null);
         
@@ -359,7 +362,16 @@ function App() {
         setNetworkRole(hostColor);
         setHumanColor(hostColor);
 
-        // Create initial stones
+        // Reset omok state for the host as well
+        setBoard(Array(15).fill(null).map(() => Array(15).fill(null)));
+        setLastMove(null);
+        setCurrentPlayer('black');
+        setWinner(null);
+        setWinningLine([]);
+        setDecidedColor('black');
+        setHasStarted(true);
+
+        // Create initial alkkagi stones
         const initialStones: import('./hooks/useAlkkagi').AlkkagiStone[] = [];
         let idCounter = 0;
         for (let i = 0; i < alkkagiStonesCount; i++) {
@@ -389,11 +401,17 @@ function App() {
           });
         }
 
+        // Reset alkkagi state for the host
         setAlkkagiStones(initialStones);
         setAlkkagiCurrentPlayer('black');
         setAlkkagiWinner(null);
         setAlkkagiIsSimulating(false);
         setLanPlacementTimer(15);
+
+        // Unblock sync after React state has settled
+        setTimeout(() => {
+          isUpdatingNetworkRef.current = false;
+        }, 100);
 
         // Send initial game config
         conn.on('open', () => {
@@ -498,19 +516,27 @@ function App() {
           }
           if (payload.gameMode) {
             setGameMode(payload.gameMode);
-            if (payload.gameMode === 'omok') {
-              setOmokMode('vs_lan');
-              setBoard(Array(15).fill(null).map(() => Array(15).fill(null)));
-              setWinner(null);
-            } else {
-              setAlkkagiMode('vs_lan');
-              setLanPlacementTimer(15);
-              if (payload.alkkagiState) {
-                setAlkkagiStones(payload.alkkagiState.stones);
-                setAlkkagiCurrentPlayer(payload.alkkagiState.currentPlayer);
-                setAlkkagiWinner(payload.alkkagiState.winner);
-                setAlkkagiIsSimulating(payload.alkkagiState.isSimulating);
-              }
+
+            // Always reset both game modes so both sides start fresh
+            setOmokMode(payload.gameMode === 'omok' ? 'vs_lan' : 'vs_ai');
+            setAlkkagiMode(payload.gameMode === 'alkkagi' ? 'vs_lan' : 'vs_ai');
+
+            // Reset omok state
+            setBoard(Array(15).fill(null).map(() => Array(15).fill(null)));
+            setLastMove(null);
+            setCurrentPlayer('black');
+            setWinner(null);
+            setWinningLine([]);
+            setDecidedColor('black');
+            setHasStarted(true);
+
+            // Reset alkkagi state
+            setLanPlacementTimer(payload.gameMode === 'alkkagi' ? 15 : null);
+            if (payload.alkkagiState) {
+              setAlkkagiStones(payload.alkkagiState.stones);
+              setAlkkagiCurrentPlayer(payload.alkkagiState.currentPlayer);
+              setAlkkagiWinner(payload.alkkagiState.winner);
+              setAlkkagiIsSimulating(payload.alkkagiState.isSimulating);
             }
           }
         }
