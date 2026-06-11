@@ -194,9 +194,12 @@ function App() {
 
   useEffect(() => {
     if (alkkagiMode === 'vs_lan' && gameMode === 'alkkagi' && activeRoom?.id) {
-      syncGameStateToNetwork('alkkagi');
+      // Only sync if we are the current player (prevent ping-pong feedback sync loops)
+      if (alkkagiCurrentPlayer === networkRole) {
+        syncGameStateToNetwork('alkkagi');
+      }
     }
-  }, [alkkagiStones, alkkagiCurrentPlayer, alkkagiWinner, alkkagiIsSimulating, alkkagiMode, gameMode, activeRoom?.id]);
+  }, [alkkagiStones, alkkagiCurrentPlayer, alkkagiWinner, alkkagiIsSimulating, alkkagiMode, gameMode, activeRoom?.id, networkRole]);
 
   const changeRoomGameMode = (newMode: 'omok' | 'alkkagi', initialStones: any[] = []) => {
     import('./utils/p2pNetwork').then(({ sendP2PData }) => {
@@ -291,6 +294,11 @@ function App() {
             isFalling: false,
           });
         }
+
+        setAlkkagiStones(initialStones);
+        setAlkkagiCurrentPlayer('black');
+        setAlkkagiWinner(null);
+        setAlkkagiIsSimulating(false);
 
         // Send initial game config
         conn.on('open', () => {
@@ -1106,6 +1114,8 @@ function App() {
                 ) : alkkagiWinner ? (
                   alkkagiMode === 'vs_player'
                     ? (alkkagiWinner === 'black' ? '흑돌 플레이어 승리!' : '백돌 플레이어 승리!')
+                    : alkkagiMode === 'vs_lan'
+                    ? (alkkagiWinner === networkRole ? '축하합니다! 당신의 승리!' : '아쉽네요. 상대방의 승리!')
                     : (alkkagiWinner === 'black' ? '흑돌(플레이어) 승리!' : '백돌(AI) 승리!')
                 ) : alkkagiIsSimulating ? (
                   '돌들이 굴러가는 중...'
@@ -1113,6 +1123,10 @@ function App() {
                   `연습 모드 - 현재 차례: ${alkkagiCurrentPlayer === 'black' ? '흑돌' : '백돌'}`
                 ) : alkkagiMode === 'vs_player' ? (
                   alkkagiCurrentPlayer === 'black' ? '흑돌 플레이어 차례' : '백돌 플레이어 차례'
+                ) : alkkagiMode === 'vs_lan' ? (
+                  alkkagiCurrentPlayer === networkRole 
+                    ? '내 턴 (돌을 조준해서 날려주세요!)' 
+                    : '상대방 턴 (상대방의 조준을 기다리는 중...)'
                 ) : alkkagiCurrentPlayer === 'black' ? (
                   '내 턴 (흑돌을 조준해 날려주세요)'
                 ) : (
@@ -1364,9 +1378,16 @@ function App() {
                           <div className="pdf-text-heading-32 pdf-mb-300" style={{ color: 'var(--color-text-primary)', textAlign: 'center' }}>
                             {alkkagiMode === 'vs_player' 
                               ? (alkkagiWinner === 'black' ? '흑돌 플레이어 승리!' : '백돌 플레이어 승리!')
+                              : alkkagiMode === 'vs_lan'
+                              ? (alkkagiWinner === networkRole ? '축하합니다! 당신의 승리!' : '아쉽네요. 상대방의 승리!')
                               : (alkkagiWinner === 'black' ? 'YOU WIN (BLACK)!' : 'AI WINS (WHITE)!')}
                           </div>
-                          <button className="pdf-btn-primary" onClick={alkkagiResetGame}>
+                          <button className="pdf-btn-primary" onClick={() => {
+                            alkkagiResetGame();
+                            if (alkkagiMode === 'vs_lan') {
+                              setTimeout(() => syncGameStateToNetwork('alkkagi'), 50);
+                            }
+                          }}>
                             RESTART GAME
                           </button>
                         </div>
