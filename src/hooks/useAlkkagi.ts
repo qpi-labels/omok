@@ -291,6 +291,7 @@ export const useAlkkagi = (
     setStones,
     setCurrentPlayer,
     setWinner,
-    setIsSimulating
+    setIsSimulating,
+    setTurnCount
   };
 };

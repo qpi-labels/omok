@@ -17,6 +17,7 @@ export interface P2PPayload {
     currentPlayer: 'black' | 'white';
     winner: any;
     isSimulating: boolean;
+    turnCount: number;
   };
   assignedRole?: 'black' | 'white';
   user?: {

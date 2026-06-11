@@ -50,7 +50,8 @@ function App() {
     setCurrentPlayer: setAlkkagiCurrentPlayer,
     setWinner: setAlkkagiWinner,
     setIsSimulating: setAlkkagiIsSimulating,
-    turnCount: alkkagiTurnCount
+    turnCount: alkkagiTurnCount,
+    setTurnCount: setAlkkagiTurnCount
   } = useAlkkagi(isPracticeMode, alkkagiMode === 'vs_player' || alkkagiMode === 'vs_lan', alkkagiStonesCount, (winnerColor, turnCount) => {
     if (alkkagiMode !== 'vs_lan' && !isPracticeMode && alkkagiMode !== 'vs_player') {
       const isWin = winnerColor === 'black';
@@ -201,7 +202,8 @@ function App() {
           stones: alkkagiStones,
           currentPlayer: alkkagiCurrentPlayer,
           winner: alkkagiWinner,
-          isSimulating: alkkagiIsSimulating
+          isSimulating: alkkagiIsSimulating,
+          turnCount: alkkagiTurnCount
         }
       });
     }
@@ -316,7 +318,8 @@ function App() {
         stones: initialStones,
         currentPlayer: 'black',
         winner: null,
-        isSimulating: false
+        isSimulating: false,
+        turnCount: 0
       } : undefined
     });
   };
@@ -423,7 +426,8 @@ function App() {
               stones: initialStones,
               currentPlayer: 'black',
               winner: null,
-              isSimulating: false
+              isSimulating: false,
+              turnCount: 0
             }
           });
         });
@@ -454,6 +458,7 @@ function App() {
             setAlkkagiCurrentPlayer(state.currentPlayer);
             setAlkkagiWinner(state.winner);
             setAlkkagiIsSimulating(state.isSimulating);
+            if (state.turnCount !== undefined) setAlkkagiTurnCount(state.turnCount);
           }
 
           if (payload.type === 'reset') {
@@ -537,6 +542,7 @@ function App() {
               setAlkkagiCurrentPlayer(payload.alkkagiState.currentPlayer);
               setAlkkagiWinner(payload.alkkagiState.winner);
               setAlkkagiIsSimulating(payload.alkkagiState.isSimulating);
+              setAlkkagiTurnCount(payload.alkkagiState.turnCount || 0);
             }
           }
         }
@@ -563,6 +569,7 @@ function App() {
           setAlkkagiCurrentPlayer(state.currentPlayer);
           setAlkkagiWinner(state.winner);
           setAlkkagiIsSimulating(state.isSimulating);
+          if (state.turnCount !== undefined) setAlkkagiTurnCount(state.turnCount);
         }
 
         if (payload.type === 'reset') {
