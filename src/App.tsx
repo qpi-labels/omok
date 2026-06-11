@@ -7,6 +7,7 @@ import './omok.css';
 import { useAlkkagi } from './hooks/useAlkkagi';
 import { AlkkagiBoard } from './components/AlkkagiBoard';
 import { NetworkRoom } from './utils/network';
+import { initializePeer, connectToPeer, sendP2PData, registerConnection, closeP2P } from './utils/p2pNetwork';
 
 function App() {
   const [isPracticeMode, setIsPracticeMode] = useState(() => {
@@ -127,6 +128,16 @@ function App() {
     resetGame();
   };
 
+  const handleLANReset = (mode: 'omok' | 'alkkagi') => {
+    if (mode === 'omok') {
+      resetGame();
+      sendP2PData({ type: 'reset', gameMode: 'omok' });
+    } else {
+      alkkagiResetGame();
+      sendP2PData({ type: 'reset', gameMode: 'alkkagi' });
+    }
+  };
+
   const handleOpenLeaderboard = async (tab?: 'omok' | 'alkkagi') => {
     if (!profile) {
       alert("로그인이 필요합니다.");
@@ -135,6 +146,7 @@ function App() {
     const targetTab = tab || gameMode;
     setLeaderboardTab(targetTab);
     setShowLeaderboard(true);
+    setLeaderboardData([]);
     try {
       if (db) {
         const docKey = targetTab === 'omok' ? 'global' : 'alkkagi';
@@ -147,6 +159,7 @@ function App() {
       }
     } catch (e) {
       console.error("Failed to load leaderboard:", e);
+      setLeaderboardData([]);
     }
   };
 
@@ -161,32 +174,30 @@ function App() {
   const syncGameStateToNetwork = (newGameMode: 'omok' | 'alkkagi') => {
     if (!activeRoom?.id || isUpdatingNetworkRef.current) return;
     
-    import('./utils/p2pNetwork').then(({ sendP2PData }) => {
-      if (newGameMode === 'omok') {
-        sendP2PData({
-          type: 'omokState',
-          omokState: {
-            board: JSON.stringify(board),
-            lastMove,
-            currentPlayer: currentPlayer as 'black' | 'white',
-            winner,
-            winningLine,
-            decidedColor,
-            hasStarted
-          }
-        });
-      } else {
-        sendP2PData({
-          type: 'alkkagiState',
-          alkkagiState: {
-            stones: alkkagiStones,
-            currentPlayer: alkkagiCurrentPlayer,
-            winner: alkkagiWinner,
-            isSimulating: alkkagiIsSimulating
-          }
-        });
-      }
-    });
+    if (newGameMode === 'omok') {
+      sendP2PData({
+        type: 'omokState',
+        omokState: {
+          board: JSON.stringify(board),
+          lastMove,
+          currentPlayer: currentPlayer as 'black' | 'white',
+          winner,
+          winningLine,
+          decidedColor,
+          hasStarted
+        }
+      });
+    } else {
+      sendP2PData({
+        type: 'alkkagiState',
+        alkkagiState: {
+          stones: alkkagiStones,
+          currentPlayer: alkkagiCurrentPlayer,
+          winner: alkkagiWinner,
+          isSimulating: alkkagiIsSimulating
+        }
+      });
+    }
   };
 
   // Run synchronization effect whenever game states change in LAN mode
@@ -209,34 +220,32 @@ function App() {
   }, [alkkagiStones, alkkagiCurrentPlayer, alkkagiWinner, alkkagiIsSimulating, alkkagiMode, gameMode, activeRoom?.id, networkRole]);
 
   const changeRoomGameMode = (newMode: 'omok' | 'alkkagi', initialStones: any[] = []) => {
-    import('./utils/p2pNetwork').then(({ sendP2PData }) => {
-      setGameMode(newMode);
-      if (newMode === 'omok') {
-        setOmokMode('vs_lan');
-        setBoard(Array(15).fill(null).map(() => Array(15).fill(null)));
-        setLastMove(null);
-        setCurrentPlayer('black');
-        setWinner(null);
-        setWinningLine([]);
-        setDecidedColor('black');
-        setHasStarted(true);
-      } else {
-        setAlkkagiMode('vs_lan');
-        setAlkkagiStones(initialStones);
-        setAlkkagiCurrentPlayer('black');
-        setAlkkagiWinner(null);
-        setAlkkagiIsSimulating(false);
-      }
-      sendP2PData({
-        type: 'gameMode',
-        gameMode: newMode,
-        alkkagiState: newMode === 'alkkagi' ? {
-          stones: initialStones,
-          currentPlayer: 'black',
-          winner: null,
-          isSimulating: false
-        } : undefined
-      });
+    setGameMode(newMode);
+    if (newMode === 'omok') {
+      setOmokMode('vs_lan');
+      setBoard(Array(15).fill(null).map(() => Array(15).fill(null)));
+      setLastMove(null);
+      setCurrentPlayer('black');
+      setWinner(null);
+      setWinningLine([]);
+      setDecidedColor('black');
+      setHasStarted(true);
+    } else {
+      setAlkkagiMode('vs_lan');
+      setAlkkagiStones(initialStones);
+      setAlkkagiCurrentPlayer('black');
+      setAlkkagiWinner(null);
+      setAlkkagiIsSimulating(false);
+    }
+    sendP2PData({
+      type: 'gameMode',
+      gameMode: newMode,
+      alkkagiState: newMode === 'alkkagi' ? {
+        stones: initialStones,
+        currentPlayer: 'black',
+        winner: null,
+        isSimulating: false
+      } : undefined
     });
   };
 
@@ -248,7 +257,6 @@ function App() {
     }
     const code = 'ROOM_' + Math.random().toString(36).substring(2, 6).toUpperCase();
     try {
-      const { initializePeer, registerConnection } = await import('./utils/p2pNetwork');
       const p = await initializePeer(code);
       
       setRoomCode(code);
@@ -348,6 +356,14 @@ function App() {
             setAlkkagiWinner(state.winner);
             setAlkkagiIsSimulating(state.isSimulating);
           }
+
+          if (payload.type === 'reset') {
+            if (payload.gameMode === 'omok') {
+              resetGame();
+            } else if (payload.gameMode === 'alkkagi') {
+              alkkagiResetGame();
+            }
+          }
           isUpdatingNetworkRef.current = false;
         });
 
@@ -374,7 +390,6 @@ function App() {
     }
     const cleanRoomCode = roomCode.trim().toUpperCase();
     try {
-      const { connectToPeer } = await import('./utils/p2pNetwork');
       const conn = await connectToPeer(cleanRoomCode);
       
       setNetworkRole('white');
@@ -436,6 +451,14 @@ function App() {
           setAlkkagiWinner(state.winner);
           setAlkkagiIsSimulating(state.isSimulating);
         }
+
+        if (payload.type === 'reset') {
+          if (payload.gameMode === 'omok') {
+            resetGame();
+          } else if (payload.gameMode === 'alkkagi') {
+            alkkagiResetGame();
+          }
+        }
         isUpdatingNetworkRef.current = false;
       });
 
@@ -451,9 +474,7 @@ function App() {
   };
 
   const handleExitRoom = (newMode?: 'vs_ai' | 'vs_player' | 'vs_lan') => {
-    import('./utils/p2pNetwork').then(({ closeP2P }) => {
-      closeP2P();
-    });
+    closeP2P();
     setActiveRoom(null);
     setNetworkRole(null);
     if (newMode) {
@@ -711,7 +732,7 @@ function App() {
                               알까기로 전환
                             </button>
                           )}
-                          <button className="pdf-secondary-btn pdf-w-full pdf-justify-center" style={{ fontSize: '12px' }} onClick={() => { handleNewGame(); syncGameStateToNetwork('omok'); }}>
+                           <button className="pdf-secondary-btn pdf-w-full pdf-justify-center" style={{ fontSize: '12px' }} onClick={() => handleLANReset('omok')}>
                             방 게임 초기화
                           </button>
                           <button className="pdf-secondary-btn pdf-w-full pdf-justify-center" style={{ fontSize: '12px', color: 'var(--color-functional-red)' }} onClick={() => handleExitRoom()}>
@@ -826,7 +847,7 @@ function App() {
                               오목으로 전환
                             </button>
                           )}
-                          <button className="pdf-secondary-btn pdf-w-full pdf-justify-center" style={{ fontSize: '12px' }} onClick={() => { alkkagiResetGame(); syncGameStateToNetwork('alkkagi'); }}>
+                          <button className="pdf-secondary-btn pdf-w-full pdf-justify-center" style={{ fontSize: '12px' }} onClick={() => handleLANReset('alkkagi')}>
                             방 게임 초기화
                           </button>
                           <button className="pdf-secondary-btn pdf-w-full pdf-justify-center" style={{ fontSize: '12px', color: 'var(--color-functional-red)' }} onClick={() => handleExitRoom()}>
@@ -1390,9 +1411,10 @@ function App() {
                               : (alkkagiWinner === 'black' ? 'YOU WIN (BLACK)!' : 'AI WINS (WHITE)!')}
                           </div>
                           <button className="pdf-btn-primary" onClick={() => {
-                            alkkagiResetGame();
                             if (alkkagiMode === 'vs_lan') {
-                              setTimeout(() => syncGameStateToNetwork('alkkagi'), 50);
+                              handleLANReset('alkkagi');
+                            } else {
+                              alkkagiResetGame();
                             }
                           }}>
                             RESTART GAME
