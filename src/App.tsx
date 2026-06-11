@@ -71,6 +71,7 @@ function App() {
     }
   }, [profile?.govatarTrainingMode]);
   const [leaderboardData, setLeaderboardData] = useState<any[]>([]);
+  const [leaderboardTab, setLeaderboardTab] = useState<'omok' | 'alkkagi'>('omok');
   const [cursorPos, setCursorPos] = useState({ row: 7, col: 7 });
   const [hoverPos, setHoverPos] = useState<{row: number, col: number} | null>(null);
   const [hasCheckedAbandonment, setHasCheckedAbandonment] = useState(false);
@@ -125,15 +126,17 @@ function App() {
     resetGame();
   };
 
-  const handleOpenLeaderboard = async () => {
+  const handleOpenLeaderboard = async (tab?: 'omok' | 'alkkagi') => {
     if (!profile) {
       alert("로그인이 필요합니다.");
       return;
     }
+    const targetTab = tab || gameMode;
+    setLeaderboardTab(targetTab);
     setShowLeaderboard(true);
     try {
       if (db) {
-        const docKey = gameMode === 'omok' ? 'global' : 'alkkagi';
+        const docKey = targetTab === 'omok' ? 'global' : 'alkkagi';
         const docSnap = await getDoc(doc(db, 'leaderboard', docKey));
         if (docSnap.exists()) {
           setLeaderboardData(docSnap.data().topPlayers || []);
@@ -619,7 +622,7 @@ function App() {
                   </div>
                 </div>
                 <div className="pdf-flex-row pdf-items-center pdf-gap-050" style={{ marginTop: '8px', borderTop: '1px solid var(--color-border-default)', paddingTop: '8px' }}>
-                  <button onClick={handleOpenLeaderboard} className="pdf-text-label-14-mono pdf-font-bold pdf-text-red" style={{ fontSize: '12px' }}>
+                  <button onClick={() => handleOpenLeaderboard()} className="pdf-text-label-14-mono pdf-font-bold pdf-text-red" style={{ fontSize: '12px' }}>
                     🏆 글로벌 랭킹
                   </button>
                   <div style={{ flex: 1 }} />
@@ -1509,9 +1512,49 @@ function App() {
       {showLeaderboard && (
         <div className="pdf-fixed pdf-inset-0 pdf-flex-row pdf-items-center pdf-justify-center pdf-modal-overlay" onClick={() => setShowLeaderboard(false)}>
           <div className="pdf-animate-fade-in pdf-radius-lg pdf-modal-container" style={{ width: '400px', maxHeight: '80vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
-            <div className="pdf-flex-row pdf-items-center pdf-justify-between pdf-panel-header">
+            <div className="pdf-flex-row pdf-items-center pdf-justify-between pdf-panel-header" style={{ marginBottom: '12px' }}>
               <h2 className="pdf-text-heading-24">🏆 글로벌 랭킹 Top 100</h2>
               <button className="pdf-secondary-btn pdf-btn-xs" onClick={() => setShowLeaderboard(false)}>닫기</button>
+            </div>
+
+            {/* Category Tabs */}
+            <div className="pdf-flex-row" style={{ display: 'inline-flex', backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-default)', borderRadius: '8px', padding: '4px', gap: '4px', width: '100%', marginBottom: '16px' }}>
+              <button
+                onClick={() => handleOpenLeaderboard('omok')}
+                style={{
+                  flex: 1,
+                  padding: '6px 4px',
+                  borderRadius: '6px',
+                  backgroundColor: leaderboardTab === 'omok' ? 'var(--color-bg-primary)' : 'transparent',
+                  color: leaderboardTab === 'omok' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+                  boxShadow: leaderboardTab === 'omok' ? 'var(--shadow-hardware-bevel)' : 'none',
+                  transition: 'all 0.2s',
+                  fontSize: '12px',
+                  fontWeight: leaderboardTab === 'omok' ? '700' : '400',
+                  border: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                오목 랭킹
+              </button>
+              <button
+                onClick={() => handleOpenLeaderboard('alkkagi')}
+                style={{
+                  flex: 1,
+                  padding: '6px 4px',
+                  borderRadius: '6px',
+                  backgroundColor: leaderboardTab === 'alkkagi' ? 'var(--color-bg-primary)' : 'transparent',
+                  color: leaderboardTab === 'alkkagi' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+                  boxShadow: leaderboardTab === 'alkkagi' ? 'var(--shadow-hardware-bevel)' : 'none',
+                  transition: 'all 0.2s',
+                  fontSize: '12px',
+                  fontWeight: leaderboardTab === 'alkkagi' ? '700' : '400',
+                  border: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                알까기 랭킹
+              </button>
             </div>
             
             <div className="pdf-flex-col pdf-gap-150">
@@ -1528,7 +1571,7 @@ function App() {
                     <div style={{ flex: 1 }}>
                       <div className="pdf-flex-row pdf-items-center" style={{ gap: '8px' }}>
                         <div className="pdf-text-label-14-mono pdf-text-primary">{entry.displayName}</div>
-                        {entry.govatarPlayStyle !== undefined && entry.govatarDifficulty && (
+                        {leaderboardTab === 'omok' && entry.govatarPlayStyle !== undefined && entry.govatarDifficulty && (
                           <button 
                             onClick={() => {
                               setPendingGovatarChallenge({ 
