@@ -231,6 +231,10 @@ export const AlkkagiBoard: React.FC<AlkkagiBoardProps> = ({
     });
 
     if (clickedStone) {
+      // Prevent scrolling on touch devices during active dragging
+      if (e.cancelable) {
+        e.preventDefault();
+      }
       setDraggedStoneId(clickedStone.id);
       setDragStart(coords);
       setDragCurrent(coords);
@@ -278,6 +282,9 @@ export const AlkkagiBoard: React.FC<AlkkagiBoardProps> = ({
     };
 
     const handleWindowTouchMove = (e: TouchEvent) => {
+      if (e.cancelable) {
+        e.preventDefault();
+      }
       const coords = getCanvasCoords(e as any);
       if (coords) setDragCurrent(coords);
     };

@@ -702,16 +702,16 @@ function App() {
                             방 만들기 (LAN)
                           </button>
                           <div style={{ height: '1px', backgroundColor: 'var(--color-border-default)' }} />
-                          <div className="pdf-flex-row pdf-gap-100">
+                           <div className="pdf-flex-row pdf-gap-100" style={{ alignItems: 'center', width: '100%' }}>
                             <input 
                               type="text" 
                               placeholder="방 코드"
                               value={roomCode}
                               onChange={(e) => setRoomCode(e.target.value)}
                               className="pdf-text-label-14-mono"
-                              style={{ flex: 1, padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--color-border-default)', backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text-primary)', outline: 'none' }}
+                              style={{ flex: 1, minWidth: 0, padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--color-border-default)', backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text-primary)', outline: 'none' }}
                             />
-                            <button className="pdf-btn-primary" onClick={handleJoinRoom}>입장</button>
+                            <button className="pdf-btn-primary" style={{ padding: '0 16px', height: '36px', borderRadius: '8px', flexShrink: 0 }} onClick={handleJoinRoom}>입장</button>
                           </div>
                         </div>
                       )}
@@ -817,16 +817,16 @@ function App() {
                             방 만들기 (LAN)
                           </button>
                           <div style={{ height: '1px', backgroundColor: 'var(--color-border-default)' }} />
-                          <div className="pdf-flex-row pdf-gap-100">
+                           <div className="pdf-flex-row pdf-gap-100" style={{ alignItems: 'center', width: '100%' }}>
                             <input 
                               type="text" 
                               placeholder="방 코드"
                               value={roomCode}
                               onChange={(e) => setRoomCode(e.target.value)}
                               className="pdf-text-label-14-mono"
-                              style={{ flex: 1, padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--color-border-default)', backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text-primary)', outline: 'none' }}
+                              style={{ flex: 1, minWidth: 0, padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--color-border-default)', backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text-primary)', outline: 'none' }}
                             />
-                            <button className="pdf-btn-primary" onClick={handleJoinRoom}>입장</button>
+                            <button className="pdf-btn-primary" style={{ padding: '0 16px', height: '36px', borderRadius: '8px', flexShrink: 0 }} onClick={handleJoinRoom}>입장</button>
                           </div>
                         </div>
                       )}
