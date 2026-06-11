@@ -18,6 +18,7 @@ export interface P2PPayload {
     winner: any;
     isSimulating: boolean;
   };
+  assignedRole?: 'black' | 'white';
   user?: {
     uid: string;
     displayName: string;

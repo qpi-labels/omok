@@ -21,6 +21,10 @@ function App() {
   const [networkRole, setNetworkRole] = useState<'black' | 'white' | null>(null); // Guest is white, Creator is black
   const isUpdatingNetworkRef = useRef(false);
   const prevAlkkagiPlayerRef = useRef<string | null>(null);
+  const hasReportedOmokResultRef = useRef(false);
+  const hasReportedAlkkagiResultRef = useRef(false);
+  const [lanPlacementTimer, setLanPlacementTimer] = useState<number | null>(null);
+  const isAlkkagiDraggingRef = useRef(false);
 
   const { profile, loginWithGoogle, logout, updateGameResult, updateAlkkagiResult, updateNickname, startGovatarTraining, cancelGovatarTraining, rankBadge, isLoading, user } = useFirebase();
   const [gameMode, setGameMode] = useState<'omok' | 'alkkagi'>('omok');
@@ -28,10 +32,7 @@ function App() {
   const [alkkagiMode, setAlkkagiMode] = useState<'vs_ai' | 'vs_player' | 'vs_lan'>('vs_ai');
 
   const { board, currentPlayer, winner, showOverlay, winningLine, lastMove, isAiThinking, humanColor, isColorDeciding, decidedColor, difficulty, setDifficulty, playMove, resetGame, hasStarted, aiStatsHistory, latestAiStats, tutorialMode, setTutorialMode, tutorialDifficulty, setTutorialDifficulty, tutorialHint, isCalculatingHint, requestHint, setBoard, setWinner, setWinningLine, setLastMove, setCurrentPlayer, setHumanColor, decidedColor: _unusedDecidedColor, setDecidedColor, setHasStarted } = useOmok((isWin, diff, turnsPlayed) => {
-    if (omokMode === 'vs_lan') {
-      // Net game result reporting
-      updateGameResult('normal', isWin, turnsPlayed, null, true);
-    } else if ((!isPracticeMode || profile?.govatarTrainingMode) && omokMode !== 'vs_player') {
+    if (omokMode !== 'vs_lan' && (!isPracticeMode || profile?.govatarTrainingMode) && omokMode !== 'vs_player') {
       updateGameResult(diff, isWin, turnsPlayed, govatarOpponent);
     }
   }, govatarOpponent, omokMode === 'vs_player' || omokMode === 'vs_lan');
@@ -48,11 +49,11 @@ function App() {
     setStones: setAlkkagiStones,
     setCurrentPlayer: setAlkkagiCurrentPlayer,
     setWinner: setAlkkagiWinner,
-    setIsSimulating: setAlkkagiIsSimulating
-  } = useAlkkagi(isPracticeMode, alkkagiMode === 'vs_player' || alkkagiMode === 'vs_lan', alkkagiStonesCount, (isWin, turnCount) => {
-    if (alkkagiMode === 'vs_lan') {
-      updateAlkkagiResult(isWin, true, turnCount);
-    } else if (!isPracticeMode && alkkagiMode !== 'vs_player') {
+    setIsSimulating: setAlkkagiIsSimulating,
+    turnCount: alkkagiTurnCount
+  } = useAlkkagi(isPracticeMode, alkkagiMode === 'vs_player' || alkkagiMode === 'vs_lan', alkkagiStonesCount, (winnerColor, turnCount) => {
+    if (alkkagiMode !== 'vs_lan' && !isPracticeMode && alkkagiMode !== 'vs_player') {
+      const isWin = winnerColor === 'black';
       updateAlkkagiResult(isWin, false, turnCount);
     }
   });
@@ -129,12 +130,18 @@ function App() {
   };
 
   const handleLANReset = (mode: 'omok' | 'alkkagi') => {
+    const hostColor = Math.random() < 0.5 ? 'black' : 'white';
+    const guestColor = hostColor === 'black' ? 'white' : 'black';
+    setNetworkRole(hostColor);
+    setHumanColor(hostColor);
+
     if (mode === 'omok') {
       resetGame();
-      sendP2PData({ type: 'reset', gameMode: 'omok' });
+      sendP2PData({ type: 'reset', gameMode: 'omok', assignedRole: guestColor });
     } else {
       alkkagiResetGame();
-      sendP2PData({ type: 'reset', gameMode: 'alkkagi' });
+      setLanPlacementTimer(15);
+      sendP2PData({ type: 'reset', gameMode: 'alkkagi', assignedRole: guestColor });
     }
   };
 
@@ -209,17 +216,80 @@ function App() {
 
   useEffect(() => {
     if (alkkagiMode === 'vs_lan' && gameMode === 'alkkagi' && activeRoom?.id) {
-      // Sync if it is our turn or was just our turn (to send the final end-of-turn/simulation state)
-      const isMyTurn = alkkagiCurrentPlayer === networkRole;
-      const wasMyTurn = prevAlkkagiPlayerRef.current === networkRole;
-      if (isMyTurn || wasMyTurn) {
-        syncGameStateToNetwork('alkkagi');
+      if (lanPlacementTimer !== null) {
+        if (isAlkkagiDraggingRef.current) {
+          syncGameStateToNetwork('alkkagi');
+        }
+      } else {
+        // Sync if it is our turn or was just our turn (to send the final end-of-turn/simulation state)
+        const isMyTurn = alkkagiCurrentPlayer === networkRole;
+        const wasMyTurn = prevAlkkagiPlayerRef.current === networkRole;
+        if (isMyTurn || wasMyTurn) {
+          syncGameStateToNetwork('alkkagi');
+        }
       }
     }
     prevAlkkagiPlayerRef.current = alkkagiCurrentPlayer;
-  }, [alkkagiStones, alkkagiCurrentPlayer, alkkagiWinner, alkkagiIsSimulating, alkkagiMode, gameMode, activeRoom?.id, networkRole]);
+  }, [alkkagiStones, alkkagiCurrentPlayer, alkkagiWinner, alkkagiIsSimulating, alkkagiMode, gameMode, activeRoom?.id, networkRole, lanPlacementTimer]);
+
+  // Countdown timer for LAN Alkkagi placement phase
+  useEffect(() => {
+    if (lanPlacementTimer === null) return;
+
+    if (lanPlacementTimer <= 0) {
+      setLanPlacementTimer(null);
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setLanPlacementTimer((prev) => {
+        if (prev === null || prev <= 1) {
+          clearInterval(timer);
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [lanPlacementTimer]);
+
+  // LAN Omok result reporting
+  useEffect(() => {
+    if (omokMode === 'vs_lan' && winner && winner !== 'draw') {
+      if (!hasReportedOmokResultRef.current) {
+        hasReportedOmokResultRef.current = true;
+        const turnsPlayed = board.flat().filter(c => c !== null).length;
+        const isWin = winner === humanColor;
+        updateGameResult('normal', isWin, turnsPlayed, null, true);
+      }
+    }
+    if (!winner) {
+      hasReportedOmokResultRef.current = false;
+    }
+  }, [winner, omokMode, humanColor, board]);
+
+  // LAN Alkkagi result reporting
+  useEffect(() => {
+    if (alkkagiMode === 'vs_lan' && alkkagiWinner) {
+      if (!hasReportedAlkkagiResultRef.current) {
+        hasReportedAlkkagiResultRef.current = true;
+        const isWin = alkkagiWinner === networkRole;
+        updateAlkkagiResult(isWin, true, alkkagiTurnCount);
+      }
+    }
+    if (!alkkagiWinner) {
+      hasReportedAlkkagiResultRef.current = false;
+    }
+  }, [alkkagiWinner, alkkagiMode, networkRole, alkkagiTurnCount]);
 
   const changeRoomGameMode = (newMode: 'omok' | 'alkkagi', initialStones: any[] = []) => {
+    const hostColor = Math.random() < 0.5 ? 'black' : 'white';
+    const guestColor = hostColor === 'black' ? 'white' : 'black';
+    setNetworkRole(hostColor);
+    setHumanColor(hostColor);
+    setIsPracticeMode(false);
+
     setGameMode(newMode);
     if (newMode === 'omok') {
       setOmokMode('vs_lan');
@@ -232,6 +302,7 @@ function App() {
       setHasStarted(true);
     } else {
       setAlkkagiMode('vs_lan');
+      setLanPlacementTimer(15);
       setAlkkagiStones(initialStones);
       setAlkkagiCurrentPlayer('black');
       setAlkkagiWinner(null);
@@ -240,6 +311,7 @@ function App() {
     sendP2PData({
       type: 'gameMode',
       gameMode: newMode,
+      assignedRole: guestColor,
       alkkagiState: newMode === 'alkkagi' ? {
         stones: initialStones,
         currentPlayer: 'black',
@@ -262,6 +334,7 @@ function App() {
       setRoomCode(code);
       setNetworkRole('black');
       setHumanColor('black');
+      setIsPracticeMode(false);
       if (gameMode === 'omok') setOmokMode('vs_lan');
       else setAlkkagiMode('vs_lan');
       
@@ -280,6 +353,12 @@ function App() {
         // Notify host active status
         setActiveRoom((prev) => prev ? { ...prev, status: 'active' } : null);
         
+        // Randomize roles
+        const hostColor = Math.random() < 0.5 ? 'black' : 'white';
+        const guestColor = hostColor === 'black' ? 'white' : 'black';
+        setNetworkRole(hostColor);
+        setHumanColor(hostColor);
+
         // Create initial stones
         const initialStones: import('./hooks/useAlkkagi').AlkkagiStone[] = [];
         let idCounter = 0;
@@ -314,12 +393,14 @@ function App() {
         setAlkkagiCurrentPlayer('black');
         setAlkkagiWinner(null);
         setAlkkagiIsSimulating(false);
+        setLanPlacementTimer(15);
 
         // Send initial game config
         conn.on('open', () => {
           conn.send({
             type: 'init',
             gameMode,
+            assignedRole: guestColor,
             alkkagiState: {
               stones: initialStones,
               currentPlayer: 'black',
@@ -394,6 +475,7 @@ function App() {
       
       setNetworkRole('white');
       setHumanColor('white');
+      setIsPracticeMode(false);
       if (gameMode === 'omok') setOmokMode('vs_lan');
       else setAlkkagiMode('vs_lan');
       
@@ -410,6 +492,10 @@ function App() {
         const payload = data as import('./utils/p2pNetwork').P2PPayload;
         
         if (payload.type === 'init' || payload.type === 'gameMode') {
+          if (payload.assignedRole) {
+            setNetworkRole(payload.assignedRole);
+            setHumanColor(payload.assignedRole);
+          }
           if (payload.gameMode) {
             setGameMode(payload.gameMode);
             if (payload.gameMode === 'omok') {
@@ -418,6 +504,7 @@ function App() {
               setWinner(null);
             } else {
               setAlkkagiMode('vs_lan');
+              setLanPlacementTimer(15);
               if (payload.alkkagiState) {
                 setAlkkagiStones(payload.alkkagiState.stones);
                 setAlkkagiCurrentPlayer(payload.alkkagiState.currentPlayer);
@@ -453,10 +540,15 @@ function App() {
         }
 
         if (payload.type === 'reset') {
+          if (payload.assignedRole) {
+            setNetworkRole(payload.assignedRole);
+            setHumanColor(payload.assignedRole);
+          }
           if (payload.gameMode === 'omok') {
             resetGame();
           } else if (payload.gameMode === 'alkkagi') {
             alkkagiResetGame();
+            setLanPlacementTimer(15);
           }
         }
         isUpdatingNetworkRef.current = false;
@@ -909,22 +1001,28 @@ function App() {
                 </>
               )}
 
-              <div className="pdf-flex-row pdf-items-center pdf-justify-between" style={{ padding: '8px 12px', backgroundColor: 'var(--color-bg-secondary)', borderRadius: '8px', border: '1px solid var(--color-border-default)', opacity: gameMode === 'omok' && ((hasStarted && !winner) || profile?.govatarTrainingMode) ? 0.6 : 1 }}>
+              <div className="pdf-flex-row pdf-items-center pdf-justify-between" style={{ padding: '8px 12px', backgroundColor: 'var(--color-bg-secondary)', borderRadius: '8px', border: '1px solid var(--color-border-default)', opacity: (gameMode === 'omok' && ((hasStarted && !winner) || profile?.govatarTrainingMode)) || omokMode === 'vs_lan' || alkkagiMode === 'vs_lan' ? 0.6 : 1 }}>
                 <span className="pdf-text-label-14-mono" style={{ color: 'var(--color-text-primary)', fontSize: '13px' }}>연습 모드</span>
-                <label style={{ display: 'flex', alignItems: 'center', cursor: gameMode === 'omok' && ((hasStarted && !winner) || profile?.govatarTrainingMode) ? 'not-allowed' : 'pointer' }}>
+                <label style={{ display: 'flex', alignItems: 'center', cursor: (gameMode === 'omok' && ((hasStarted && !winner) || profile?.govatarTrainingMode)) || omokMode === 'vs_lan' || alkkagiMode === 'vs_lan' ? 'not-allowed' : 'pointer' }}>
                   <input 
                     type="checkbox" 
                     checked={isPracticeMode} 
                     onChange={(e) => setIsPracticeMode(e.target.checked)} 
-                    disabled={gameMode === 'omok' && ((hasStarted && !winner) || profile?.govatarTrainingMode)}
+                    disabled={(gameMode === 'omok' && ((hasStarted && !winner) || profile?.govatarTrainingMode)) || omokMode === 'vs_lan' || alkkagiMode === 'vs_lan'}
                     style={{ cursor: 'inherit', width: '16px', height: '16px', accentColor: 'var(--color-functional-red)' }}
                   />
                 </label>
               </div>
 
-              {gameMode === 'omok' && ((hasStarted && !winner) || profile?.govatarTrainingMode) && (
+              {gameMode === 'omok' && ((hasStarted && !winner) || profile?.govatarTrainingMode) && !(omokMode === 'vs_lan' || alkkagiMode === 'vs_lan') && (
                 <div className="pdf-text-label-14-mono pdf-text-muted" style={{ fontSize: '10px', textAlign: 'right', marginTop: '-4px' }}>
                   게임 중이거나 평가 중에는 변경할 수 없습니다
+                </div>
+              )}
+
+              {(omokMode === 'vs_lan' || alkkagiMode === 'vs_lan') && (
+                <div className="pdf-text-label-14-mono pdf-text-muted" style={{ fontSize: '10px', textAlign: 'right', marginTop: '-4px', color: 'var(--color-functional-red)' }}>
+                  LAN 플레이 중에는 연습 모드를 사용할 수 없습니다
                 </div>
               )}
 
@@ -1152,9 +1250,11 @@ function App() {
                 ) : alkkagiMode === 'vs_player' ? (
                   alkkagiCurrentPlayer === 'black' ? '흑돌 플레이어 차례' : '백돌 플레이어 차례'
                 ) : alkkagiMode === 'vs_lan' ? (
-                  alkkagiCurrentPlayer === networkRole 
-                    ? '내 턴 (돌을 조준해서 날려주세요!)' 
-                    : '상대방 턴 (상대방의 조준을 기다리는 중...)'
+                  lanPlacementTimer !== null
+                    ? `돌 배치 단계 (${lanPlacementTimer}초 남음) - 내 진영(절반)에 돌을 드래그하여 배치하세요.`
+                    : (alkkagiCurrentPlayer === networkRole 
+                        ? '내 턴 (돌을 조준해서 날려주세요!)' 
+                        : '상대방 턴 (상대방의 조준을 기다리는 중...)')
                 ) : alkkagiCurrentPlayer === 'black' ? (
                   '내 턴 (흑돌을 조준해 날려주세요)'
                 ) : (
@@ -1398,6 +1498,14 @@ function App() {
                       isSimulating={alkkagiIsSimulating}
                       winner={alkkagiWinner}
                       shoot={alkkagiShoot}
+                      isPlacementPhase={alkkagiMode === 'vs_lan' && lanPlacementTimer !== null}
+                      setStones={setAlkkagiStones}
+                      onDragStateChange={(dragging) => {
+                        isAlkkagiDraggingRef.current = dragging;
+                        if (!dragging) {
+                          syncGameStateToNetwork('alkkagi');
+                        }
+                      }}
                     />
 
                     {alkkagiWinner && (

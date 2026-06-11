@@ -8,6 +8,9 @@ interface AlkkagiBoardProps {
   isSimulating: boolean;
   winner: 'black' | 'white' | null;
   shoot: (stoneId: number, vx: number, vy: number) => void;
+  isPlacementPhase?: boolean;
+  setStones?: React.Dispatch<React.SetStateAction<AlkkagiStone[]>>;
+  onDragStateChange?: (dragging: boolean) => void;
 }
 
 const BOARD_SIZE = 500;
@@ -21,6 +24,9 @@ export const AlkkagiBoard: React.FC<AlkkagiBoardProps> = ({
   isSimulating,
   winner,
   shoot,
+  isPlacementPhase = false,
+  setStones,
+  onDragStateChange,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [draggedStoneId, setDraggedStoneId] = useState<number | null>(null);
@@ -84,8 +90,8 @@ export const AlkkagiBoard: React.FC<AlkkagiBoardProps> = ({
       });
     });
 
-    // 5. Draw Aiming Line/Arrow (if dragging)
-    if (draggedStoneId !== null && dragStart && dragCurrent) {
+    // 5. Draw Aiming Line/Arrow (if dragging and not in placement phase)
+    if (!isPlacementPhase && draggedStoneId !== null && dragStart && dragCurrent) {
       const activeStone = stones.find((s) => s.id === draggedStoneId);
       if (activeStone) {
         const dx = dragStart.x - dragCurrent.x;
@@ -218,7 +224,8 @@ export const AlkkagiBoard: React.FC<AlkkagiBoardProps> = ({
   };
 
   const handleStart = (e: React.MouseEvent | React.TouchEvent) => {
-    if (isSimulating || winner || currentPlayer !== humanColor) return;
+    if (isSimulating || winner) return;
+    if (!isPlacementPhase && currentPlayer !== humanColor) return;
 
     const coords = getCanvasCoords(e);
     if (!coords) return;
@@ -238,39 +245,45 @@ export const AlkkagiBoard: React.FC<AlkkagiBoardProps> = ({
       setDraggedStoneId(clickedStone.id);
       setDragStart(coords);
       setDragCurrent(coords);
+      if (onDragStateChange) {
+        onDragStateChange(true);
+      }
     }
   };
-
-
 
   const handleEnd = () => {
     if (draggedStoneId === null || !dragStart || !dragCurrent) return;
 
-    const dx = dragStart.x - dragCurrent.x;
-    const dy = dragStart.y - dragCurrent.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (!isPlacementPhase) {
+      const dx = dragStart.x - dragCurrent.x;
+      const dy = dragStart.y - dragCurrent.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
 
-    if (dist > 5) {
-      // Aim power coefficient (scaled from drag pixels to shooting velocity)
-      const powerFactor = 0.16;
-      // Cap maximum launch speed
-      const maxDrag = 150;
-      let vx = dx * powerFactor;
-      let vy = dy * powerFactor;
-      const speed = Math.sqrt(vx * vx + vy * vy);
-      const maxSpeed = maxDrag * powerFactor;
+      if (dist > 5) {
+        // Aim power coefficient (scaled from drag pixels to shooting velocity)
+        const powerFactor = 0.16;
+        // Cap maximum launch speed
+        const maxDrag = 150;
+        let vx = dx * powerFactor;
+        let vy = dy * powerFactor;
+        const speed = Math.sqrt(vx * vx + vy * vy);
+        const maxSpeed = maxDrag * powerFactor;
 
-      if (speed > maxSpeed) {
-        vx = (vx / speed) * maxSpeed;
-        vy = (vy / speed) * maxSpeed;
+        if (speed > maxSpeed) {
+          vx = (vx / speed) * maxSpeed;
+          vy = (vy / speed) * maxSpeed;
+        }
+
+        shoot(draggedStoneId, vx, vy);
       }
-
-      shoot(draggedStoneId, vx, vy);
     }
 
     setDraggedStoneId(null);
     setDragStart(null);
     setDragCurrent(null);
+    if (onDragStateChange) {
+      onDragStateChange(false);
+    }
   };
 
   useEffect(() => {
@@ -278,7 +291,26 @@ export const AlkkagiBoard: React.FC<AlkkagiBoardProps> = ({
 
     const handleWindowMouseMove = (e: MouseEvent) => {
       const coords = getCanvasCoords(e as any);
-      if (coords) setDragCurrent(coords);
+      if (coords) {
+        if (isPlacementPhase && setStones && draggedStoneId !== null) {
+          setStones((prev) =>
+            prev.map((s) => {
+              if (s.id === draggedStoneId) {
+                let y = coords.y;
+                if (humanColor === 'black') {
+                  y = Math.max(250 + s.radius, Math.min(500 - s.radius, y));
+                } else {
+                  y = Math.max(s.radius, Math.min(250 - s.radius, y));
+                }
+                const x = Math.max(s.radius, Math.min(500 - s.radius, coords.x));
+                return { ...s, x, y };
+              }
+              return s;
+            })
+          );
+        }
+        setDragCurrent(coords);
+      }
     };
 
     const handleWindowTouchMove = (e: TouchEvent) => {
@@ -286,7 +318,26 @@ export const AlkkagiBoard: React.FC<AlkkagiBoardProps> = ({
         e.preventDefault();
       }
       const coords = getCanvasCoords(e as any);
-      if (coords) setDragCurrent(coords);
+      if (coords) {
+        if (isPlacementPhase && setStones && draggedStoneId !== null) {
+          setStones((prev) =>
+            prev.map((s) => {
+              if (s.id === draggedStoneId) {
+                let y = coords.y;
+                if (humanColor === 'black') {
+                  y = Math.max(250 + s.radius, Math.min(500 - s.radius, y));
+                } else {
+                  y = Math.max(s.radius, Math.min(250 - s.radius, y));
+                }
+                const x = Math.max(s.radius, Math.min(500 - s.radius, coords.x));
+                return { ...s, x, y };
+              }
+              return s;
+            })
+          );
+        }
+        setDragCurrent(coords);
+      }
     };
 
     const handleWindowMouseUp = () => {
