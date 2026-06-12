@@ -30,6 +30,7 @@ function App() {
   const [gameMode, setGameMode] = useState<'home' | 'omok' | 'alkkagi'>('home');
   const [omokMode, setOmokMode] = useState<'vs_ai' | 'vs_player' | 'vs_lan'>('vs_ai');
   const [alkkagiMode, setAlkkagiMode] = useState<'vs_ai' | 'vs_player' | 'vs_lan'>('vs_ai');
+  const [alkkagiSuperpowerMode, setAlkkagiSuperpowerMode] = useState<boolean>(false);
 
   const { board, currentPlayer, winner, showOverlay, winningLine, lastMove, isAiThinking, humanColor, isColorDeciding, decidedColor, difficulty, setDifficulty, playMove, resetGame, hasStarted, aiStatsHistory, latestAiStats, tutorialMode, setTutorialMode, tutorialDifficulty, setTutorialDifficulty, tutorialHint, isCalculatingHint, requestHint, setBoard, setWinner, setWinningLine, setLastMove, setCurrentPlayer, setHumanColor, decidedColor: _unusedDecidedColor, setDecidedColor, setHasStarted } = useOmok((isWin, diff, turnsPlayed) => {
     if (omokMode !== 'vs_lan' && (!isPracticeMode || profile?.govatarTrainingMode) && omokMode !== 'vs_player') {
@@ -53,7 +54,7 @@ function App() {
     turnCount: alkkagiTurnCount,
     setTurnCount: setAlkkagiTurnCount,
     collisionEvents: alkkagiCollisionEvents
-  } = useAlkkagi(isPracticeMode, alkkagiMode === 'vs_player' || alkkagiMode === 'vs_lan', alkkagiStonesCount, (winnerColor, turnCount) => {
+  } = useAlkkagi(isPracticeMode, alkkagiMode === 'vs_player' || alkkagiMode === 'vs_lan', alkkagiSuperpowerMode, alkkagiStonesCount, (winnerColor, turnCount) => {
     if (alkkagiMode !== 'vs_lan' && !isPracticeMode && alkkagiMode !== 'vs_player') {
       const isWin = winnerColor === 'black';
       updateAlkkagiResult(isWin, false, turnCount);
@@ -393,6 +394,8 @@ function App() {
             isFalling: false,
             scale: 1,
             hitFlash: 0,
+            ability: 'normal',
+            mass: 1,
           });
         }
         for (let i = 0; i < alkkagiStonesCount; i++) {
@@ -410,6 +413,8 @@ function App() {
             isFalling: false,
             scale: 1,
             hitFlash: 0,
+            ability: 'normal',
+            mass: 1,
           });
         }
 
@@ -1014,6 +1019,18 @@ function App() {
                   )}
 
                   <div className="pdf-flex-row pdf-items-center pdf-justify-between" style={{ padding: '8px 12px', backgroundColor: 'var(--color-bg-secondary)', borderRadius: '8px', border: '1px solid var(--color-border-default)' }}>
+                    <span className="pdf-text-label-14-mono" style={{ color: 'var(--color-text-primary)', fontSize: '13px' }}>능력자 모드 💥</span>
+                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={alkkagiSuperpowerMode} 
+                        onChange={(e) => setAlkkagiSuperpowerMode(e.target.checked)} 
+                        style={{ cursor: 'inherit', width: '16px', height: '16px', accentColor: 'var(--color-functional-red)' }}
+                      />
+                    </label>
+                  </div>
+
+                  <div className="pdf-flex-row pdf-items-center pdf-justify-between" style={{ padding: '8px 12px', backgroundColor: 'var(--color-bg-secondary)', borderRadius: '8px', border: '1px solid var(--color-border-default)' }}>
                     <span className="pdf-text-label-14-mono" style={{ color: 'var(--color-text-primary)', fontSize: '13px' }}>돌 개수 설정</span>
                     <select
                       value={alkkagiStonesCount}
@@ -1590,6 +1607,7 @@ function App() {
                       isPlacementPhase={alkkagiMode === 'vs_lan' && lanPlacementTimer !== null}
                       setStones={setAlkkagiStones}
                       collisionEvents={alkkagiCollisionEvents}
+                      gameType={alkkagiMode}
                       onDragStateChange={(dragging) => {
                         isAlkkagiDraggingRef.current = dragging;
                         if (!dragging) {

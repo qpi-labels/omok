@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 
+export type AlkkagiAbility = 'normal' | 'heavy' | 'sniper' | 'bomb' | 'ghost';
+
 export interface AlkkagiStone {
   id: number;
   x: number;
@@ -18,6 +20,8 @@ export interface AlkkagiStone {
   scale: number;
   /** Flash intensity after a collision (0–1, decays quickly) */
   hitFlash: number;
+  ability: AlkkagiAbility;
+  mass: number;
 }
 
 const BOARD_SIZE = 500;
@@ -39,6 +43,7 @@ const SUB_STEPS = 3;
 export const useAlkkagi = (
   isPracticeMode: boolean,
   twoPlayerMode: boolean,
+  superpowerMode: boolean,
   initialStoneCount: number = 7,
   onGameEnd?: (winner: 'black' | 'white', turnCount: number) => void
 ) => {
@@ -62,8 +67,28 @@ export const useAlkkagi = (
     const initialStones: AlkkagiStone[] = [];
     let idCounter = 0;
 
+    // Random ability assignment logic
+    const getRandomAbilities = () => {
+      if (!superpowerMode) return Array(initialStoneCount).fill('normal');
+      const pool: AlkkagiAbility[] = ['heavy', 'sniper', 'bomb', 'ghost'];
+      const numAbilities = Math.floor(Math.random() * 2) + 2; // 2 or 3
+      const shuffledPool = [...pool].sort(() => Math.random() - 0.5);
+      const chosen = shuffledPool.slice(0, numAbilities);
+      const result = new Array(initialStoneCount).fill('normal');
+      for (let i = 0; i < chosen.length; i++) {
+        result[i] = chosen[i];
+      }
+      return result.sort(() => Math.random() - 0.5);
+    };
+
+    const blackAbilities = getRandomAbilities();
+    const whiteAbilities = getRandomAbilities();
+
     // Place Black stones at the bottom
     for (let i = 0; i < initialStoneCount; i++) {
+      const ability = blackAbilities[i];
+      const mass = ability === 'heavy' ? 3 : ability === 'sniper' ? 0.5 : 1;
+      const radius = ability === 'heavy' ? STONE_RADIUS * 1.2 : STONE_RADIUS;
       initialStones.push({
         id: idCounter++,
         x: initialStoneCount === 1
@@ -72,16 +97,16 @@ export const useAlkkagi = (
         y: BOARD_SIZE - 60,
         vx: 0, vy: 0, omega: 0, angle: 0,
         color: 'black',
-        radius: STONE_RADIUS,
-        active: true,
-        isFalling: false,
-        scale: 1,
-        hitFlash: 0,
+        radius, active: true, isFalling: false, scale: 1, hitFlash: 0,
+        ability, mass
       });
     }
 
     // Place White stones at the top
     for (let i = 0; i < initialStoneCount; i++) {
+      const ability = whiteAbilities[i];
+      const mass = ability === 'heavy' ? 3 : ability === 'sniper' ? 0.5 : 1;
+      const radius = ability === 'heavy' ? STONE_RADIUS * 1.2 : STONE_RADIUS;
       initialStones.push({
         id: idCounter++,
         x: initialStoneCount === 1
@@ -90,11 +115,8 @@ export const useAlkkagi = (
         y: 60,
         vx: 0, vy: 0, omega: 0, angle: 0,
         color: 'white',
-        radius: STONE_RADIUS,
-        active: true,
-        isFalling: false,
-        scale: 1,
-        hitFlash: 0,
+        radius, active: true, isFalling: false, scale: 1, hitFlash: 0,
+        ability, mass
       });
     }
 
@@ -184,8 +206,12 @@ export const useAlkkagi = (
         const dy = b.y - a.y;
         const distSq = dx * dx + dy * dy;
         const minDist = a.radius + b.radius;
-
         if (distSq < minDist * minDist && distSq > 0.0001) {
+          // Ghost ability: skip collision between same-color stones if either is a ghost
+          if (a.color === b.color && (a.ability === 'ghost' || b.ability === 'ghost')) {
+            continue;
+          }
+
           const dist = Math.sqrt(distSq);
           const overlap = minDist - dist;
 
@@ -193,11 +219,17 @@ export const useAlkkagi = (
           const nx = dx / dist;
           const ny = dy / dist;
 
-          // Separate stones (positional correction)
-          a.x -= nx * overlap * 0.51;
-          a.y -= ny * overlap * 0.51;
-          b.x += nx * overlap * 0.51;
-          b.y += ny * overlap * 0.51;
+          // Mass-based positional correction
+          const totalInverseMass = (1 / a.mass) + (1 / b.mass);
+          const aInvMass = 1 / a.mass;
+          const bInvMass = 1 / b.mass;
+          const aRatio = aInvMass / totalInverseMass;
+          const bRatio = bInvMass / totalInverseMass;
+
+          a.x -= nx * overlap * aRatio * 1.01;
+          a.y -= ny * overlap * aRatio * 1.01;
+          b.x += nx * overlap * bRatio * 1.01;
+          b.y += ny * overlap * bRatio * 1.01;
 
           // Relative velocity along normal
           const rvx = a.vx - b.vx;
@@ -205,24 +237,24 @@ export const useAlkkagi = (
           const velAlongNormal = rvx * nx + rvy * ny;
 
           if (velAlongNormal > 0) {
-            // Normal impulse with restitution
-            const impulse = velAlongNormal * (1 + RESTITUTION) * 0.5;
+            // Normal impulse with restitution (1D elastic collision formula with mass)
+            const impulse = velAlongNormal * (1 + RESTITUTION) / totalInverseMass;
 
-            a.vx -= impulse * nx;
-            a.vy -= impulse * ny;
-            b.vx += impulse * nx;
-            b.vy += impulse * ny;
+            a.vx -= impulse * aInvMass * nx;
+            a.vy -= impulse * aInvMass * ny;
+            b.vx += impulse * bInvMass * nx;
+            b.vy += impulse * bInvMass * ny;
 
             // Tangential friction (generates spin)
             const tx = -ny;
             const ty = nx;
             const relTan = rvx * tx + rvy * ty;
-            const tanImpulse = relTan * COLLISION_TANGENT_FRICTION;
+            const tanImpulse = relTan * COLLISION_TANGENT_FRICTION / totalInverseMass;
 
-            a.vx -= tanImpulse * tx * 0.5;
-            a.vy -= tanImpulse * ty * 0.5;
-            b.vx += tanImpulse * tx * 0.5;
-            b.vy += tanImpulse * ty * 0.5;
+            a.vx -= tanImpulse * aInvMass * tx;
+            a.vy -= tanImpulse * aInvMass * ty;
+            b.vx += tanImpulse * bInvMass * tx;
+            b.vy += tanImpulse * bInvMass * ty;
 
             // Apply hit flash proportional to impact speed
             const impactSpeed = Math.abs(velAlongNormal);
@@ -235,8 +267,29 @@ export const useAlkkagi = (
             events.push({ x: cx, y: cy, intensity: Math.min(1, impactSpeed / 12) });
 
             // Add spin from collision
-            a.omega += (relTan * 0.15) / Math.max(a.radius, 1);
-            b.omega -= (relTan * 0.15) / Math.max(b.radius, 1);
+            a.omega += (relTan * 0.15 * aInvMass) / Math.max(a.radius, 1);
+            b.omega -= (relTan * 0.15 * bInvMass) / Math.max(b.radius, 1);
+
+            // Bomb logic
+            if (a.color !== b.color && (a.ability === 'bomb' || b.ability === 'bomb')) {
+              events.push({ x: cx, y: cy, intensity: 2 }); // Bigger flash
+              
+              // Apply AoE impulse to all stones
+              for (const s of next) {
+                if (!s.active || s.isFalling) continue;
+                const adx = s.x - cx;
+                const ady = s.y - cy;
+                const adistSq = adx * adx + ady * ady;
+                if (adistSq < 10000 && adistSq > 0.01) { // roughly 100px radius
+                  const adist = Math.sqrt(adistSq);
+                  const force = (100 - adist) * 0.2; // Falloff
+                  s.vx += (adx / adist) * force * (1 / s.mass);
+                  s.vy += (ady / adist) * force * (1 / s.mass);
+                }
+              }
+              if (a.ability === 'bomb') a.isFalling = true;
+              if (b.ability === 'bomb') b.isFalling = true;
+            }
           }
         }
       }
@@ -299,21 +352,21 @@ export const useAlkkagi = (
   const shoot = useCallback((stoneId: number, vx: number, vy: number) => {
     if (simulationRef.current || winner) return;
 
-    // Clamp to max speed
-    const speed = Math.sqrt(vx * vx + vy * vy);
-    if (speed > MAX_SHOOT_SPEED) {
-      vx = (vx / speed) * MAX_SHOOT_SPEED;
-      vy = (vy / speed) * MAX_SHOOT_SPEED;
-    }
-
-    setStones((prev) =>
-      prev.map((s) => {
-        if (s.id === stoneId) {
+    setStones((prev) => {
+      const newStones = prev.map((s) => {
+        if (s.id === stoneId && !s.isFalling) {
+          const maxSpeed = s.ability === 'sniper' ? MAX_SHOOT_SPEED * 2.5 : MAX_SHOOT_SPEED;
+          let speed = Math.sqrt(vx * vx + vy * vy);
+          if (speed > maxSpeed) {
+            vx = (vx / speed) * maxSpeed;
+            vy = (vy / speed) * maxSpeed;
+          }
           return { ...s, vx, vy };
         }
         return s;
-      })
-    );
+      });
+      return newStones;
+    });
 
     setIsSimulating(true);
     simulationRef.current = true;

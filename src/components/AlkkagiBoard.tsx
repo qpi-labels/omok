@@ -13,6 +13,7 @@ interface AlkkagiBoardProps {
   onDragStateChange?: (dragging: boolean) => void;
   /** Collision events from the physics engine (for visual effects) */
   collisionEvents?: { x: number; y: number; intensity: number }[];
+  gameType?: 'vs_ai' | 'vs_player' | 'vs_lan';
 }
 
 const BOARD_SIZE = 500;
@@ -42,6 +43,7 @@ export const AlkkagiBoard: React.FC<AlkkagiBoardProps> = ({
   setStones,
   onDragStateChange,
   collisionEvents = [],
+  gameType = 'vs_ai',
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [draggedStoneId, setDraggedStoneId] = useState<number | null>(null);
@@ -261,6 +263,12 @@ export const AlkkagiBoard: React.FC<AlkkagiBoardProps> = ({
       ctx.rotate(stone.angle ?? 0);
       ctx.scale(scale, scale);
 
+      const hideAbility = gameType === 'vs_lan' && stone.color !== humanColor;
+
+      if (!hideAbility && stone.ability === 'ghost') {
+        ctx.globalAlpha = 0.5;
+      }
+
       // Shadow
       ctx.shadowColor = 'rgba(0,0,0,0.35)';
       ctx.shadowBlur = 8;
@@ -318,6 +326,30 @@ export const AlkkagiBoard: React.FC<AlkkagiBoardProps> = ({
       ctx.arc(-r * 0.12, -r * 0.12, r * 0.12, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(255,255,255,0.3)';
       ctx.fill();
+
+      // Draw Ability Icon
+      if (!hideAbility && stone.ability && stone.ability !== 'normal') {
+        ctx.save();
+        // Counter-rotate so the icon stays upright
+        ctx.rotate(-(stone.angle ?? 0));
+        ctx.font = '16px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        let icon = '';
+        if (stone.ability === 'heavy') icon = '🛡️';
+        if (stone.ability === 'sniper') icon = '🎯';
+        if (stone.ability === 'bomb') icon = '💣';
+        if (stone.ability === 'ghost') icon = '👻';
+        
+        // Add a subtle text shadow for visibility
+        ctx.shadowColor = 'rgba(0,0,0,0.5)';
+        ctx.shadowBlur = 2;
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 1;
+        ctx.fillText(icon, 0, 1);
+        ctx.restore();
+      }
 
       ctx.restore();
 
