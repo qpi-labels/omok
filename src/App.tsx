@@ -152,7 +152,7 @@ function App() {
       alert("로그인이 필요합니다.");
       return;
     }
-    const targetTab = tab || gameMode;
+    const targetTab = tab || (gameMode === 'home' ? 'omok' : gameMode);
     setLeaderboardTab(targetTab);
     setShowLeaderboard(true);
     setLeaderboardData([]);
@@ -344,7 +344,7 @@ function App() {
       
       setActiveRoom({
         id: code,
-        gameMode,
+        gameMode: gameMode === 'home' ? 'omok' : gameMode,
         createdBy: user.uid,
         status: 'waiting',
         lastActionTime: Date.now()
@@ -513,7 +513,7 @@ function App() {
       
       setActiveRoom({
         id: cleanRoomCode,
-        gameMode,
+        gameMode: gameMode === 'home' ? 'omok' : gameMode,
         createdBy: '',
         status: 'active',
         lastActionTime: Date.now()
