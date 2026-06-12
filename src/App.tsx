@@ -27,7 +27,7 @@ function App() {
   const isAlkkagiDraggingRef = useRef(false);
 
   const { profile, loginWithGoogle, logout, updateGameResult, updateAlkkagiResult, updateNickname, startGovatarTraining, cancelGovatarTraining, rankBadge, isLoading, user } = useFirebase();
-  const [gameMode, setGameMode] = useState<'omok' | 'alkkagi'>('omok');
+  const [gameMode, setGameMode] = useState<'home' | 'omok' | 'alkkagi'>('home');
   const [omokMode, setOmokMode] = useState<'vs_ai' | 'vs_player' | 'vs_lan'>('vs_ai');
   const [alkkagiMode, setAlkkagiMode] = useState<'vs_ai' | 'vs_player' | 'vs_lan'>('vs_ai');
 
@@ -679,6 +679,17 @@ function App() {
           <div className="pdf-mt-050 pdf-mb-200">
             <div className="pdf-flex-col">
               <div 
+                className={`pdf-nav-item ${gameMode === 'home' ? 'active' : ''}`}
+                onClick={() => setGameMode('home')}
+                style={{ borderRadius: '8px', padding: '10px 12px', marginBottom: '4px' }}
+              >
+                <div className="pdf-flex-row pdf-items-center pdf-gap-100">
+                  <span style={{ fontSize: '16px' }}>🏠</span>
+                  <span className="pdf-text-label-14-mono">홈 (Home)</span>
+                </div>
+                {gameMode === 'home' && <div className="pdf-indicator-dot" />}
+              </div>
+              <div 
                 className={`pdf-nav-item ${gameMode === 'omok' ? 'active' : ''}`}
                 onClick={() => setGameMode('omok')}
                 style={{ borderRadius: '8px', padding: '10px 12px', marginBottom: '4px' }}
@@ -787,10 +798,10 @@ function App() {
             )}
           </div>
 
-          <div className="pdf-nav-group-header">
+          <div className="pdf-nav-group-header" style={{ display: gameMode === 'home' ? 'none' : 'flex' }}>
             {gameMode === 'omok' ? 'OMOK CONTROLS' : 'ALKKAGI CONTROLS'}
           </div>
-          <div className="pdf-mt-050">
+          <div className="pdf-mt-050" style={{ display: gameMode === 'home' ? 'none' : 'block' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {gameMode === 'omok' ? (
                 <>
@@ -1154,7 +1165,7 @@ function App() {
             </>
           )}
 
-          <div className="pdf-nav-group-header pdf-mt-200" style={{ position: 'relative', justifyContent: 'flex-start', gap: '6px' }}>
+          <div className="pdf-nav-group-header pdf-mt-200" style={{ position: 'relative', justifyContent: 'flex-start', gap: '6px', display: gameMode === 'home' ? 'none' : 'flex' }}>
             GAME INFO
             <button 
               onMouseEnter={() => setShowGameInfo(true)}
@@ -1205,7 +1216,7 @@ function App() {
               </div>
             )}
           </div>
-          <div className="pdf-panel pdf-mt-050" style={{ margin: 0 }}>
+          <div className="pdf-panel pdf-mt-050" style={{ margin: 0, display: gameMode === 'home' ? 'none' : 'block' }}>
             <ul className="pdf-text-copy-13-mono pdf-text-muted" style={{ listStyleType: 'none', padding: 0, fontSize: '11px' }}>
               {gameMode === 'omok' ? (
                 <>
@@ -1227,6 +1238,50 @@ function App() {
 
       {/* Main Content */}
       <main className="pdf-main-view">
+        {gameMode === 'home' ? (
+          <div className="pdf-main-content">
+            <div className="pdf-mb-400">
+              <h1 className="pdf-text-heading-32 pdf-mb-050">미니게임 천국</h1>
+              <p className="pdf-text-copy-14 pdf-text-muted">
+                원하시는 게임을 선택해 플레이하세요!
+              </p>
+            </div>
+            <div className="pdf-flex-row pdf-gap-200 pdf-flex-wrap" style={{ alignItems: 'stretch' }}>
+              <div 
+                className="pdf-panel pdf-cursor-pointer" 
+                onClick={() => setGameMode('omok')}
+                style={{ flex: '1 1 300px', transition: 'transform 0.2s, box-shadow 0.2s', display: 'flex', flexDirection: 'column' }}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = 'var(--shadow-hardware-bevel-active)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'var(--shadow-hardware-bevel)'; }}
+              >
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚫</div>
+                <h3 className="pdf-text-heading-24 pdf-mb-100">오목 (Gomoku)</h3>
+                <p className="pdf-text-copy-14 pdf-text-muted pdf-mb-200" style={{ flex: 1 }}>
+                  컴퓨터나 다른 플레이어와 15x15 오목판에서 대결하세요. 자유 룰이 적용되어 누구나 쉽게 즐길 수 있습니다.
+                </p>
+                <button className="pdf-btn-primary pdf-w-full">
+                  플레이 하기
+                </button>
+              </div>
+              <div 
+                className="pdf-panel pdf-cursor-pointer" 
+                onClick={() => setGameMode('alkkagi')}
+                style={{ flex: '1 1 300px', transition: 'transform 0.2s, box-shadow 0.2s', display: 'flex', flexDirection: 'column' }}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = 'var(--shadow-hardware-bevel-active)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'var(--shadow-hardware-bevel)'; }}
+              >
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>💥</div>
+                <h3 className="pdf-text-heading-24 pdf-mb-100">알까기 (Alkkagi)</h3>
+                <p className="pdf-text-copy-14 pdf-text-muted pdf-mb-200" style={{ flex: 1 }}>
+                  바둑알을 튕겨 상대방의 돌을 모두 떨어뜨리는 슬링샷 물리 게임입니다. 가볍게 즐겨보세요!
+                </p>
+                <button className="pdf-btn-primary pdf-w-full">
+                  플레이 하기
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
         <div className="pdf-main-content">
           <div className="pdf-mb-400">
             <h1 className="pdf-text-heading-32 pdf-mb-050">{gameMode === 'omok' ? '오목' : '알까기'}</h1>
@@ -1676,6 +1731,7 @@ function App() {
           </div>
         </div>
       </div>
+        )}
     </main>
       {/* Leaderboard Modal */}
       {showLeaderboard && (

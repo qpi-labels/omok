@@ -333,33 +333,62 @@ export const useAlkkagi = (
 
     if (whiteStones.length === 0 || blackStones.length === 0) return;
 
-    // AI strategy: pick the white stone closest to any black stone for more aggressive play
+    // AI strategy: Score each possible white->black shot
+    // Smarter & More Aggressive:
+    // 1. Push black stones away from the center (towards edges).
+    // 2. Prioritize using white stones that are safer (further from edges).
+    // 3. Prioritize shorter shots for better accuracy.
     let bestAiStone = whiteStones[0];
     let bestTarget = blackStones[0];
+    let bestScore = -Infinity;
     let bestDist = Infinity;
 
     for (const ws of whiteStones) {
       for (const bs of blackStones) {
         const dx = bs.x - ws.x;
         const dy = bs.y - ws.y;
-        const d = Math.sqrt(dx * dx + dy * dy);
-        if (d < bestDist) {
-          bestDist = d;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        // Normalize direction
+        const dirX = dx / dist;
+        const dirY = dy / dist;
+
+        // Vector from black stone to the center of the board
+        const toCenterX = (BOARD_SIZE / 2) - bs.x;
+        const toCenterY = (BOARD_SIZE / 2) - bs.y;
+        
+        // Dot product of shot direction and center vector
+        // If negative, the shot pushes the black stone AWAY from the center (towards an edge) -> Good!
+        const dotProduct = dirX * toCenterX + dirY * toCenterY;
+        
+        // White stone safety (distance to nearest edge)
+        const wEdgeDist = Math.min(
+          ws.x, BOARD_SIZE - ws.x,
+          ws.y, BOARD_SIZE - ws.y
+        );
+
+        // Calculate a heuristic score (higher is better)
+        const score = (-dotProduct * 1.5) + (wEdgeDist * 0.8) - (dist * 0.5);
+
+        if (score > bestScore) {
+          bestScore = score;
           bestAiStone = ws;
           bestTarget = bs;
+          bestDist = dist;
         }
       }
     }
 
-    // Aim with moderate randomness
+    // Aim with high precision (reduced randomness for a "smarter" AI)
     const dx = bestTarget.x - bestAiStone.x;
     const dy = bestTarget.y - bestAiStone.y;
     const baseAngle = Math.atan2(dy, dx);
-    const randomOffset = (Math.random() - 0.5) * 0.25;
+    const randomOffset = (Math.random() - 0.5) * 0.05; // Tiny error margin
     const finalAngle = baseAngle + randomOffset;
-    // Adjust speed based on distance – farther = faster
+    
+    // Aggressive speed: Hit hard enough to knock the target off
     const distFactor = Math.min(bestDist / BOARD_SIZE, 1);
-    const speed = 10 + distFactor * 10 + Math.random() * 3;
+    const speed = 16 + (distFactor * 16) + (Math.random() * 2);
 
     const vx = Math.cos(finalAngle) * speed;
     const vy = Math.sin(finalAngle) * speed;
