@@ -670,46 +670,36 @@ function App() {
         <div className="pdf-p-300">
           <div className="pdf-flex-col pdf-mb-200">
             <div className="pdf-text-heading-24 pdf-font-bold" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span>🎮</span> 오목 & 알까기
+              <span>🎮</span> 미니게임
             </div>
           </div>
 
-          {/* Game Mode Selector */}
-          <div className="pdf-nav-group-header" style={{ marginTop: 'var(--space-100)' }}>GAME MODE</div>
+          {/* Game List Selector */}
+          <div className="pdf-nav-group-header" style={{ marginTop: 'var(--space-100)' }}>GAMES</div>
           <div className="pdf-mt-050 pdf-mb-200">
-            <div className="pdf-flex-row" style={{ display: 'inline-flex', backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-default)', borderRadius: '8px', padding: '4px', gap: '4px', width: '100%' }}>
-              <button
+            <div className="pdf-flex-col">
+              <div 
+                className={`pdf-nav-item ${gameMode === 'omok' ? 'active' : ''}`}
                 onClick={() => setGameMode('omok')}
-                style={{
-                  flex: 1,
-                  padding: '8px 4px',
-                  borderRadius: '6px',
-                  backgroundColor: gameMode === 'omok' ? 'var(--color-bg-primary)' : 'transparent',
-                  color: gameMode === 'omok' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-                  boxShadow: gameMode === 'omok' ? 'var(--shadow-hardware-bevel)' : 'none',
-                  transition: 'all 0.2s',
-                  fontSize: '13px',
-                  fontWeight: gameMode === 'omok' ? '700' : '400',
-                }}
+                style={{ borderRadius: '8px', padding: '10px 12px', marginBottom: '4px' }}
               >
-                오목 (Gomoku)
-              </button>
-              <button
+                <div className="pdf-flex-row pdf-items-center pdf-gap-100">
+                  <span style={{ fontSize: '16px' }}>⚫</span>
+                  <span className="pdf-text-label-14-mono">오목 (Gomoku)</span>
+                </div>
+                {gameMode === 'omok' && <div className="pdf-indicator-dot" />}
+              </div>
+              <div 
+                className={`pdf-nav-item ${gameMode === 'alkkagi' ? 'active' : ''}`}
                 onClick={() => setGameMode('alkkagi')}
-                style={{
-                  flex: 1,
-                  padding: '8px 4px',
-                  borderRadius: '6px',
-                  backgroundColor: gameMode === 'alkkagi' ? 'var(--color-bg-primary)' : 'transparent',
-                  color: gameMode === 'alkkagi' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-                  boxShadow: gameMode === 'alkkagi' ? 'var(--shadow-hardware-bevel)' : 'none',
-                  transition: 'all 0.2s',
-                  fontSize: '13px',
-                  fontWeight: gameMode === 'alkkagi' ? '700' : '400',
-                }}
+                style={{ borderRadius: '8px', padding: '10px 12px' }}
               >
-                알까기 (Alkkagi)
-              </button>
+                <div className="pdf-flex-row pdf-items-center pdf-gap-100">
+                  <span style={{ fontSize: '16px' }}>💥</span>
+                  <span className="pdf-text-label-14-mono">알까기 (Alkkagi)</span>
+                </div>
+                {gameMode === 'alkkagi' && <div className="pdf-indicator-dot" />}
+              </div>
             </div>
           </div>
 
@@ -797,7 +787,9 @@ function App() {
             )}
           </div>
 
-          <div className="pdf-nav-group-header">CONTROLS</div>
+          <div className="pdf-nav-group-header">
+            {gameMode === 'omok' ? 'OMOK CONTROLS' : 'ALKKAGI CONTROLS'}
+          </div>
           <div className="pdf-mt-050">
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {gameMode === 'omok' ? (
