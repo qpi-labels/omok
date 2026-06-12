@@ -51,7 +51,8 @@ function App() {
     setWinner: setAlkkagiWinner,
     setIsSimulating: setAlkkagiIsSimulating,
     turnCount: alkkagiTurnCount,
-    setTurnCount: setAlkkagiTurnCount
+    setTurnCount: setAlkkagiTurnCount,
+    collisionEvents: alkkagiCollisionEvents
   } = useAlkkagi(isPracticeMode, alkkagiMode === 'vs_player' || alkkagiMode === 'vs_lan', alkkagiStonesCount, (winnerColor, turnCount) => {
     if (alkkagiMode !== 'vs_lan' && !isPracticeMode && alkkagiMode !== 'vs_player') {
       const isWin = winnerColor === 'black';
@@ -384,10 +385,14 @@ function App() {
             y: 500 - 60,
             vx: 0,
             vy: 0,
+            omega: 0,
+            angle: 0,
             color: 'black' as const,
             radius: 16,
             active: true,
             isFalling: false,
+            scale: 1,
+            hitFlash: 0,
           });
         }
         for (let i = 0; i < alkkagiStonesCount; i++) {
@@ -397,10 +402,14 @@ function App() {
             y: 60,
             vx: 0,
             vy: 0,
+            omega: 0,
+            angle: 0,
             color: 'white' as const,
             radius: 16,
             active: true,
             isFalling: false,
+            scale: 1,
+            hitFlash: 0,
           });
         }
 
@@ -1533,6 +1542,7 @@ function App() {
                       shoot={alkkagiShoot}
                       isPlacementPhase={alkkagiMode === 'vs_lan' && lanPlacementTimer !== null}
                       setStones={setAlkkagiStones}
+                      collisionEvents={alkkagiCollisionEvents}
                       onDragStateChange={(dragging) => {
                         isAlkkagiDraggingRef.current = dragging;
                         if (!dragging) {
