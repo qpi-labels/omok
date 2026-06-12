@@ -379,7 +379,26 @@ function App() {
         // Create initial alkkagi stones
         const initialStones: import('./hooks/useAlkkagi').AlkkagiStone[] = [];
         let idCounter = 0;
+
+        const getRandomAbilities = () => {
+          if (!alkkagiSuperpowerMode) return Array(alkkagiStonesCount).fill('normal');
+          const pool: import('./hooks/useAlkkagi').AlkkagiAbility[] = ['heavy', 'sniper', 'bomb', 'ghost'];
+          const numAbilities = Math.floor(Math.random() * 2) + 2;
+          const shuffledPool = [...pool].sort(() => Math.random() - 0.5);
+          const chosen = shuffledPool.slice(0, numAbilities);
+          const result = new Array(alkkagiStonesCount).fill('normal');
+          for (let i = 0; i < chosen.length; i++) {
+            result[i] = chosen[i];
+          }
+          return result.sort(() => Math.random() - 0.5);
+        };
+        const blackAbilities = getRandomAbilities();
+        const whiteAbilities = getRandomAbilities();
+
         for (let i = 0; i < alkkagiStonesCount; i++) {
+          const ability = blackAbilities[i];
+          const mass = ability === 'heavy' ? 3 : ability === 'sniper' ? 0.5 : 1;
+          const radius = ability === 'heavy' ? 16 * 1.2 : 16;
           initialStones.push({
             id: idCounter++,
             x: alkkagiStonesCount === 1 ? 250 : 50 + i * (500 - 100) / (alkkagiStonesCount - 1),
@@ -389,16 +408,19 @@ function App() {
             omega: 0,
             angle: 0,
             color: 'black' as const,
-            radius: 16,
+            radius,
             active: true,
             isFalling: false,
             scale: 1,
             hitFlash: 0,
-            ability: 'normal',
-            mass: 1,
+            ability,
+            mass,
           });
         }
         for (let i = 0; i < alkkagiStonesCount; i++) {
+          const ability = whiteAbilities[i];
+          const mass = ability === 'heavy' ? 3 : ability === 'sniper' ? 0.5 : 1;
+          const radius = ability === 'heavy' ? 16 * 1.2 : 16;
           initialStones.push({
             id: idCounter++,
             x: alkkagiStonesCount === 1 ? 250 : 50 + i * (500 - 100) / (alkkagiStonesCount - 1),
@@ -408,13 +430,13 @@ function App() {
             omega: 0,
             angle: 0,
             color: 'white' as const,
-            radius: 16,
+            radius,
             active: true,
             isFalling: false,
             scale: 1,
             hitFlash: 0,
-            ability: 'normal',
-            mass: 1,
+            ability,
+            mass,
           });
         }
 

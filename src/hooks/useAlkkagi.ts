@@ -131,7 +131,7 @@ export const useAlkkagi = (
       cancelAnimationFrame(animationFrameId.current);
       animationFrameId.current = null;
     }
-  }, [initialStoneCount]);
+  }, [initialStoneCount, superpowerMode]);
 
   useEffect(() => {
     initGame();
